@@ -30,7 +30,7 @@ export async function embedText(
  * Embed multiple texts using Gemini's native batch embedding.
  * The SDK accepts an array of up to 100 strings per call, which internally
  * maps to `batchEmbedContents`. This reduces 8,500 chunks from 8,500 API
- * calls down to 85.
+ * calls down to 85. Includes exponential backoff on 429 rate-limit errors.
  */
 export async function embedBatch(
   texts: string[],
@@ -41,23 +41,40 @@ export async function embedBatch(
 
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE)
-    const response = await ai.models.embedContent({
-      model: EMBEDDING_MODEL,
-      contents: batch,
-      config: {
-        taskType,
-        outputDimensionality: EMBEDDING_DIMS,
-      },
-    })
+    const response = await embedWithRetry(batch, taskType)
     const embeddings = (response.embeddings ?? []).map((e) => e.values ?? [])
     results.push(...embeddings)
-    // Small pause between batches to respect rate limits
+    // Pause between batches to respect rate limits
     if (i + BATCH_SIZE < texts.length) {
-      await new Promise((r) => setTimeout(r, 200))
+      await new Promise((r) => setTimeout(r, 500))
     }
   }
 
   return results
+}
+
+async function embedWithRetry(
+  contents: string[],
+  taskType: 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY',
+  maxRetries = 5
+) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await ai.models.embedContent({
+        model: EMBEDDING_MODEL,
+        contents,
+        config: { taskType, outputDimensionality: EMBEDDING_DIMS },
+      })
+    } catch (err: unknown) {
+      const status = (err as { status?: number }).status ?? (err as { code?: number }).code
+      const isRateLimit = status === 429 || (err instanceof Error && err.message.includes('429'))
+      if (!isRateLimit || attempt === maxRetries) throw err
+      const delay = Math.min(1000 * Math.pow(2, attempt), 30000)
+      console.log(`[embeddings] 429 rate limit, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`)
+      await new Promise((r) => setTimeout(r, delay))
+    }
+  }
+  throw new Error('embedWithRetry: unreachable')
 }
 
 export interface ChatMessage {
