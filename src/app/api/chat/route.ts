@@ -5,6 +5,22 @@ import { embedText, generateCharacterResponse } from '@/lib/gemini'
 
 export const maxDuration = 60
 
+// Wrap the core handler to ensure errors always return JSON instead of crashing silently
+export async function POST(req: NextRequest): Promise<Response> {
+  try {
+    return await chatHandler(req)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[chat] unhandled error:', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+}
+
+// Renamed original handler
+async function chatHandler(req: NextRequest): Promise<Response> {
+  return _chatHandler(req)
+}
+
 type Character = {
   id: string
   name: string
@@ -12,7 +28,7 @@ type Character = {
   system_prompt: string | null
 }
 
-export async function POST(req: NextRequest) {
+async function _chatHandler(req: NextRequest): Promise<Response> {
   const session = await auth()
   const userId = session?.user?.id ?? session?.user?.email
 
