@@ -55,6 +55,16 @@ async function _chatHandler(req: NextRequest): Promise<Response> {
   }
 
   const supabase = createAdminClient()
+
+  // Ensure relay user exists in users table (FK constraint)
+  if (isApiAuth && apiUserId) {
+    await supabase.from('users').upsert({
+      id: apiUserId,
+      email: `${apiUserId}@relay.literati`,
+      name: apiUserId,
+    }, { onConflict: 'id', ignoreDuplicates: true })
+  }
+
   let convId = conversationId
   let character: Character
 
