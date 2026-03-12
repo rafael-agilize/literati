@@ -1,11 +1,11 @@
-import { PDFParse } from 'pdf-parse'
-import mammoth from 'mammoth'
-import { parse as csvParse } from 'csv-parse/sync'
 import { inflateRawSync } from 'zlib'
 
 /**
  * Parse a file buffer into plain text.
  * Supports: PDF, DOCX, CSV, EPUB, and plain text (TXT, MD, etc.)
+ *
+ * Heavy dependencies (pdf-parse, mammoth, csv-parse) are dynamically imported
+ * to avoid module-level crashes on Vercel's serverless runtime.
  */
 export async function parseFile(
   buffer: Buffer,
@@ -15,6 +15,7 @@ export async function parseFile(
   const ext = filename.toLowerCase().split('.').pop() ?? ''
 
   if (ext === 'pdf' || mimeType === 'application/pdf') {
+    const { PDFParse } = await import('pdf-parse')
     const parser = new PDFParse({ data: new Uint8Array(buffer) })
     const result = await parser.getText()
     return result.text
@@ -24,11 +25,13 @@ export async function parseFile(
     ext === 'docx' ||
     mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   ) {
+    const mammoth = (await import('mammoth')).default
     const result = await mammoth.extractRawText({ buffer })
     return result.value
   }
 
   if (ext === 'csv' || mimeType === 'text/csv') {
+    const { parse: csvParse } = await import('csv-parse/sync')
     const records = csvParse(buffer, {
       columns: true,
       skip_empty_lines: true,
