@@ -1,0 +1,171 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { createAdminClient } from '@/lib/supabase'
+import { embedText, generateCharacterResponse } from '@/lib/gemini'
+
+export const maxDuration = 60
+
+type Character = {
+  id: string
+  name: string
+  description: string | null
+  system_prompt: string | null
+}
+
+export async function POST(req: NextRequest) {
+  const session = await auth()
+  const userId = session?.user?.id ?? session?.user?.email
+
+  const apiKey = req.headers.get('x-api-key')
+  const isApiAuth = !!apiKey && apiKey === process.env.LITERATI_API_KEY
+  const apiUserId = req.headers.get('x-user-id')
+  const effectiveUserId = userId ?? (isApiAuth ? apiUserId : null)
+
+  if (!effectiveUserId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const body = await req.json() as {
+    conversationId?: string
+    characterId?: string
+    message?: string
+    stream?: boolean
+  }
+
+  const { conversationId, characterId, message, stream: streamMode = true } = body
+
+  if (!message?.trim()) {
+    return NextResponse.json({ error: 'message is required' }, { status: 400 })
+  }
+
+  const supabase = createAdminClient()
+  let convId = conversationId
+  let character: Character
+
+  if (convId) {
+    // Load character via the existing conversation
+    const { data: conv, error } = await supabase
+      .from('conversations')
+      .select('*, characters(id, name, description, system_prompt)')
+      .eq('id', convId)
+      .eq('user_id', effectiveUserId)
+      .single()
+
+    if (error || !conv) {
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
+    }
+    character = conv.characters as Character
+  } else {
+    if (!characterId) {
+      return NextResponse.json(
+        { error: 'Either conversationId or characterId is required' },
+        { status: 400 }
+      )
+    }
+    const { data: char, error: charErr } = await supabase
+      .from('characters')
+      .select('id, name, description, system_prompt')
+      .eq('id', characterId)
+      .single()
+
+    if (charErr || !char) {
+      return NextResponse.json({ error: 'Character not found' }, { status: 404 })
+    }
+    character = char as Character
+
+    // Create a new conversation for this character
+    const { data: conv } = await supabase
+      .from('conversations')
+      .insert({
+        user_id: effectiveUserId,
+        character_id: characterId,
+        title: message.slice(0, 60),
+      })
+      .select('id')
+      .single()
+
+    convId = conv!.id
+  }
+
+  // Load recent conversation history (last 10 messages, oldest first)
+  const { data: historyRows } = await supabase
+    .from('chat_messages')
+    .select('role, content')
+    .eq('conversation_id', convId)
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  const history = ((historyRows ?? []) as { role: 'user' | 'assistant'; content: string }[]).reverse()
+
+  // Persist the user's message
+  await supabase
+    .from('chat_messages')
+    .insert({ conversation_id: convId, role: 'user', content: message.trim() })
+
+  // RAG: embed the query and retrieve semantically similar chunks
+  const queryEmbedding = await embedText(message, 'RETRIEVAL_QUERY')
+  const { data: chunks } = await supabase.rpc('match_chunks', {
+    query_embedding: queryEmbedding,
+    character_id_filter: character.id,
+    match_count: 5,
+    match_threshold: 0.3,
+  })
+  const retrievedChunks = ((chunks ?? []) as { content: string }[]).map((c) => c.content)
+
+  // Generate streamed response
+  const responseStream = await generateCharacterResponse(character, retrievedChunks, history, message)
+
+  if (streamMode) {
+    // Stream to client, accumulate full text in background, then persist
+    let fullResponse = ''
+    const transformStream = new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        const text = new TextDecoder().decode(chunk)
+        fullResponse += text
+        controller.enqueue(chunk)
+      },
+      async flush() {
+        // Persist assistant message after stream completes
+        await supabase
+          .from('chat_messages')
+          .insert({ conversation_id: convId, role: 'assistant', content: fullResponse })
+        await supabase
+          .from('conversations')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', convId)
+      },
+    })
+
+    return new Response(responseStream.pipeThrough(transformStream), {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Transfer-Encoding': 'chunked',
+        'X-Conversation-Id': convId!,
+        'X-Character-Id': character.id,
+      },
+    })
+  }
+
+  // Non-streaming mode — buffer full response and return JSON (for API relay)
+  const reader = responseStream.getReader()
+  let fullResponse = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    fullResponse += new TextDecoder().decode(value)
+  }
+
+  await supabase
+    .from('chat_messages')
+    .insert({ conversation_id: convId, role: 'assistant', content: fullResponse })
+  await supabase
+    .from('conversations')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', convId)
+
+  return NextResponse.json({
+    response: fullResponse,
+    conversationId: convId,
+    characterId: character.id,
+  })
+}
