@@ -9,6 +9,12 @@ export default auth((req: NextAuthRequest) => {
   const { pathname } = req.nextUrl
   const isLoggedIn = !!req.auth
 
+  // API routes with x-api-key bypass proxy auth (handled in route handlers)
+  const hasApiKey = req.headers.get('x-api-key') === process.env.LITERATI_API_KEY
+  if (pathname.startsWith('/api/') && hasApiKey) {
+    return NextResponse.next()
+  }
+
   const isPublic = PUBLIC_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(p + '/')
   )
