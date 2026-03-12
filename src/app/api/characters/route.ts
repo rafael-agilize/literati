@@ -43,7 +43,13 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = (await auth()) as Session | null
   const userId = resolveUserId(session)
-  if (!userId) {
+
+  const apiKey = req.headers.get('x-api-key')
+  const isApiAuth = !!apiKey && apiKey === process.env.LITERATI_API_KEY
+  const apiUserId = req.headers.get('x-user-id')
+
+  const effectiveUserId = userId ?? (isApiAuth && apiUserId ? apiUserId : null)
+  if (!effectiveUserId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -63,7 +69,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from('characters')
     .insert({
-      user_id: userId,
+      user_id: effectiveUserId,
       name: name.trim(),
       description: description?.trim() ?? null,
       system_prompt: system_prompt?.trim() ?? null,
