@@ -27,19 +27,29 @@ export async function embedText(
 }
 
 /**
- * Embed multiple texts in parallel with rate-limit batching.
- * Gemini does not have a native batch endpoint — we batch locally.
+ * Embed multiple texts using Gemini's native batch embedding.
+ * The SDK accepts an array of up to 100 strings per call, which internally
+ * maps to `batchEmbedContents`. This reduces 8,500 chunks from 8,500 API
+ * calls down to 85.
  */
 export async function embedBatch(
   texts: string[],
   taskType: 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY' = 'RETRIEVAL_DOCUMENT'
 ): Promise<number[][]> {
   const results: number[][] = []
-  const BATCH_SIZE = 5
+  const BATCH_SIZE = 100
 
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE)
-    const embeddings = await Promise.all(batch.map((t) => embedText(t, taskType)))
+    const response = await ai.models.embedContent({
+      model: EMBEDDING_MODEL,
+      contents: batch,
+      config: {
+        taskType,
+        outputDimensionality: EMBEDDING_DIMS,
+      },
+    })
+    const embeddings = (response.embeddings ?? []).map((e) => e.values ?? [])
     results.push(...embeddings)
     // Small pause between batches to respect rate limits
     if (i + BATCH_SIZE < texts.length) {

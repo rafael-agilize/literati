@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase'
 import { parseFile } from '@/lib/parsers'
@@ -53,9 +53,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: docErr?.message ?? 'Failed to create document record' }, { status: 500 })
   }
 
-  // Process the file asynchronously (fire-and-forget)
+  // Process the file in the background — after() keeps the function alive on Vercel
   const buffer = Buffer.from(await file.arrayBuffer())
-  void processDocument(buffer, file.name, file.type, doc.id, characterId, supabase)
+  after(() => processDocument(buffer, file.name, file.type, doc.id, characterId, supabase))
 
   return NextResponse.json(
     { document: doc, message: 'Upload received. Processing has started.' },
@@ -112,8 +112,11 @@ async function processDocument(
   supabase: ReturnType<typeof createAdminClient>
 ): Promise<void> {
   try {
+    console.log(`[documents] Parsing file "${filename}" for doc ${documentId}`)
     const text = await parseFile(buffer, filename, mimeType)
+    console.log(`[documents] Parsed ${text.length} chars, chunking...`)
     const chunks = chunkText(text)
+    console.log(`[documents] Created ${chunks.length} chunks`)
 
     if (chunks.length === 0) {
       await supabase
@@ -123,7 +126,9 @@ async function processDocument(
       return
     }
 
+    console.log(`[documents] Embedding ${chunks.length} chunks (batch size 100)...`)
     const embeddings = await embedBatch(chunks, 'RETRIEVAL_DOCUMENT')
+    console.log(`[documents] Embedding complete, inserting into DB...`)
 
     const chunkRows = chunks.map((content, i) => ({
       document_id: documentId,
@@ -134,8 +139,14 @@ async function processDocument(
       embedding: JSON.stringify(embeddings[i]),
     }))
 
-    const { error: insertErr } = await supabase.from('document_chunks').insert(chunkRows)
-    if (insertErr) throw new Error(`Chunk insert failed: ${insertErr.message}`)
+    // Insert in batches of 500 to avoid payload size limits
+    const INSERT_BATCH = 500
+    for (let i = 0; i < chunkRows.length; i += INSERT_BATCH) {
+      const batch = chunkRows.slice(i, i + INSERT_BATCH)
+      const { error: insertErr } = await supabase.from('document_chunks').insert(batch)
+      if (insertErr) throw new Error(`Chunk insert failed at batch ${i}: ${insertErr.message}`)
+    }
+    console.log(`[documents] Inserted ${chunkRows.length} chunks in ${Math.ceil(chunkRows.length / INSERT_BATCH)} batches`)
 
     await supabase
       .from('documents')
@@ -152,6 +163,7 @@ async function processDocument(
       doc_delta: 1,
       chunk_delta: chunks.length,
     })
+    console.log(`[documents] Doc ${documentId} processing complete — status: ready`)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error(`[documents] Processing failed for doc ${documentId}:`, message)
