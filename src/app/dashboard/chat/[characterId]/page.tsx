@@ -26,11 +26,13 @@ export default async function CharacterChatListPage({
 
   const { data: character } = await supabase
     .from('characters')
-    .select('id, name, description, document_count')
+    .select('id, name, description, documents(id)')
     .eq('id', characterId)
     .single()
 
   if (!character) notFound()
+
+  const hasDocuments = (character.documents as unknown[] | null)?.length ?? 0 > 0
 
   const { data: conversations } = await supabase
     .from('conversations')
@@ -72,7 +74,7 @@ export default async function CharacterChatListPage({
       </div>
 
       {/* Warning if no documents */}
-      {character.document_count === 0 && (
+      {!hasDocuments && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 mb-6">
           No documents uploaded yet. The character will respond based on general knowledge only.{' '}
           <Link
