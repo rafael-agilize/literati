@@ -68,13 +68,12 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient()
 
   // Ensure user exists in users table (needed for FK constraint)
-  if (isApiAuth) {
-    await supabase.from('users').upsert({
-      id: effectiveUserId,
-      email: `${effectiveUserId}@relay.literati`,
-      name: effectiveUserId,
-    }, { onConflict: 'id', ignoreDuplicates: true })
-  }
+  await supabase.from('users').upsert({
+    id: effectiveUserId,
+    email: isApiAuth ? `${effectiveUserId}@relay.literati` : session?.user?.email ?? effectiveUserId,
+    name: isApiAuth ? effectiveUserId : session?.user?.name ?? null,
+    image: isApiAuth ? null : session?.user?.image ?? null,
+  }, { onConflict: 'id', ignoreDuplicates: true })
 
   const { data, error } = await supabase
     .from('characters')
