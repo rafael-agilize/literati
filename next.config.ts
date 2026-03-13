@@ -1,8 +1,6 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  // pdfjs-dist needs its worker file resolvable at runtime — keep it external.
-  serverExternalPackages: ['pdfjs-dist'],
   // Allow up to 50 MB file uploads for document processing
   experimental: {
     serverActions: {

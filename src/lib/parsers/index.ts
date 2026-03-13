@@ -112,44 +112,13 @@ function extractEpubText(buffer: Buffer): string {
 }
 
 /**
- * Extract text from a PDF using pdfjs-dist directly.
- * Uses the legacy build with an explicit worker path so it works in
- * Node.js / Vercel serverless (no browser APIs required beyond DOMMatrix polyfill).
+ * Extract text from a PDF using unpdf (serverless-safe pdfjs-dist wrapper).
+ * unpdf inlines the worker — no separate worker file needed on Vercel.
  */
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  // pdfjs-dist requires DOMMatrix (browser-only) — provide a minimal polyfill
-  if (typeof globalThis.DOMMatrix === 'undefined') {
-    // @ts-expect-error — lightweight shim sufficient for text extraction
-    globalThis.DOMMatrix = class DOMMatrix {
-      m11=1;m12=0;m13=0;m14=0;m21=0;m22=1;m23=0;m24=0;
-      m31=0;m32=0;m33=1;m34=0;m41=0;m42=0;m43=0;m44=1;
-      get a(){return this.m11} get b(){return this.m12} get c(){return this.m21}
-      get d(){return this.m22} get e(){return this.m41} get f(){return this.m42}
-      get is2D(){return true} get isIdentity(){return true}
-      constructor(init?: string|number[]){
-        if(Array.isArray(init)&&init.length===6){[this.m11,this.m12,this.m21,this.m22,this.m41,this.m42]=init}
-      }
-    }
-  }
-
-  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-
-  const doc = await pdfjsLib.getDocument({
-    data: new Uint8Array(buffer),
-    verbosity: 0,
-  }).promise
-
-  const pages: string[] = []
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i)
-    const content = await page.getTextContent()
-    const text = content.items
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((item: any) => (item.str as string) ?? '')
-      .join(' ')
-    if (text.trim()) pages.push(text)
-  }
-
-  await doc.destroy()
-  return pages.join('\n\n')
+  const { getDocumentProxy, extractText } = await import('unpdf')
+  const pdf = await getDocumentProxy(new Uint8Array(buffer))
+  const { text } = await extractText(pdf, { mergePages: true })
+  await pdf.destroy()
+  return text
 }
