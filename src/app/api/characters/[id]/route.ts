@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 type RouteParams = { params: Promise<{ id: string }> }
+
+async function resolveActualUserId(supabase: SupabaseClient, email: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .single()
+  return data?.id ?? null
+}
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   const { id } = await params
@@ -23,16 +33,21 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const { id } = await params
   const session = await auth()
-  const userId = session?.user?.email ?? session?.user?.id
-  if (!userId) {
+  const email = session?.user?.email
+  if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const supabase = createAdminClient()
+  const userId = await resolveActualUserId(supabase, email)
+  if (!userId) {
+    return NextResponse.json({ error: 'User not found' }, { status: 401 })
   }
 
   const body = await req.json() as Record<string, unknown>
   // Remove fields that should not be updated directly
   const { user_id: _u, id: _i, created_at: _c, ...updates } = body
 
-  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('characters')
     .update({ ...updates, updated_at: new Date().toISOString() })
@@ -51,12 +66,17 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   const { id } = await params
   const session = await auth()
-  const userId = session?.user?.email ?? session?.user?.id
-  if (!userId) {
+  const email = session?.user?.email
+  if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const supabase = createAdminClient()
+  const userId = await resolveActualUserId(supabase, email)
+  if (!userId) {
+    return NextResponse.json({ error: 'User not found' }, { status: 401 })
+  }
+
   const { error } = await supabase
     .from('characters')
     .delete()
