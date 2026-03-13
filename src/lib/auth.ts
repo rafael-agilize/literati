@@ -14,10 +14,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user }) {
       if (!user.email) return false
       const supabase = createAdminClient()
-      // Mirror the user into our own users table for FK references
+      // Use email as stable ID — NextAuth generates random UUIDs per sign-in
+      // without a DB adapter, so user.id is different on each device.
+      const stableId = user.email
       const { error } = await supabase.from('users').upsert(
         {
-          id: user.id || user.email,
+          id: stableId,
           email: user.email,
           name: user.name ?? null,
           image: user.image ?? null,
@@ -37,7 +39,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async jwt({ token, user }) {
       if (user) {
-        token.sub = user.id || user.email || token.sub
+        // Always use email as the stable user ID across devices
+        token.sub = user.email || token.sub
       }
       return token
     },
