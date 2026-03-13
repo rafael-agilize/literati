@@ -1,10 +1,11 @@
 import { inflateRawSync } from 'zlib'
+import path from 'path'
 
 /**
  * Parse a file buffer into plain text.
  * Supports: PDF, DOCX, CSV, EPUB, and plain text (TXT, MD, etc.)
  *
- * Heavy dependencies (pdf-parse, mammoth, csv-parse) are dynamically imported
+ * Heavy dependencies (pdfjs-dist, mammoth, csv-parse) are dynamically imported
  * to avoid module-level crashes on Vercel's serverless runtime.
  */
 export async function parseFile(
@@ -15,25 +16,7 @@ export async function parseFile(
   const ext = filename.toLowerCase().split('.').pop() ?? ''
 
   if (ext === 'pdf' || mimeType === 'application/pdf') {
-    // pdfjs-dist (used by pdf-parse v2) requires DOMMatrix which is browser-only.
-    // Provide a minimal polyfill for Node.js / Vercel serverless environments.
-    if (typeof globalThis.DOMMatrix === 'undefined') {
-      // @ts-expect-error — lightweight shim sufficient for text extraction
-      globalThis.DOMMatrix = class DOMMatrix {
-        m11=1;m12=0;m13=0;m14=0;m21=0;m22=1;m23=0;m24=0;
-        m31=0;m32=0;m33=1;m34=0;m41=0;m42=0;m43=0;m44=1;
-        get a(){return this.m11} get b(){return this.m12} get c(){return this.m21}
-        get d(){return this.m22} get e(){return this.m41} get f(){return this.m42}
-        get is2D(){return true} get isIdentity(){return this.m11===1&&this.m12===0&&this.m21===0&&this.m22===1&&this.m41===0&&this.m42===0}
-        constructor(init?: string|number[]){
-          if(Array.isArray(init)&&init.length===6){[this.m11,this.m12,this.m21,this.m22,this.m41,this.m42]=init}
-        }
-      }
-    }
-    const { PDFParse } = await import('pdf-parse')
-    const parser = new PDFParse({ data: new Uint8Array(buffer) })
-    const result = await parser.getText()
-    return result.text
+    return extractPdfText(buffer)
   }
 
   if (
@@ -127,4 +110,55 @@ function extractEpubText(buffer: Buffer): string {
   }
 
   return texts.join('\n\n')
+}
+
+/**
+ * Extract text from a PDF using pdfjs-dist directly.
+ * Uses the legacy build with an explicit worker path so it works in
+ * Node.js / Vercel serverless (no browser APIs required beyond DOMMatrix polyfill).
+ */
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  // pdfjs-dist requires DOMMatrix (browser-only) — provide a minimal polyfill
+  if (typeof globalThis.DOMMatrix === 'undefined') {
+    // @ts-expect-error — lightweight shim sufficient for text extraction
+    globalThis.DOMMatrix = class DOMMatrix {
+      m11=1;m12=0;m13=0;m14=0;m21=0;m22=1;m23=0;m24=0;
+      m31=0;m32=0;m33=1;m34=0;m41=0;m42=0;m43=0;m44=1;
+      get a(){return this.m11} get b(){return this.m12} get c(){return this.m21}
+      get d(){return this.m22} get e(){return this.m41} get f(){return this.m42}
+      get is2D(){return true} get isIdentity(){return true}
+      constructor(init?: string|number[]){
+        if(Array.isArray(init)&&init.length===6){[this.m11,this.m12,this.m21,this.m22,this.m41,this.m42]=init}
+      }
+    }
+  }
+
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  pdfjsLib.GlobalWorkerOptions.workerSrc = path.resolve(
+    require.resolve('pdfjs-dist/package.json'),
+    '../legacy/build/pdf.worker.mjs'
+  )
+
+  const doc = await pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    standardFontDataUrl: path.resolve(
+      require.resolve('pdfjs-dist/package.json'),
+      '../standard_fonts/'
+    ) + '/',
+    verbosity: 0,
+  }).promise
+
+  const pages: string[] = []
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i)
+    const content = await page.getTextContent()
+    const text = content.items
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((item: any) => (item.str as string) ?? '')
+      .join(' ')
+    if (text.trim()) pages.push(text)
+  }
+
+  await doc.destroy()
+  return pages.join('\n\n')
 }

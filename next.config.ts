@@ -1,9 +1,8 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  // pdf-parse uses pdfjs-dist which requires a worker file and DOMMatrix —
-  // keep them out of the webpack bundle so module resolution works on Vercel.
-  serverExternalPackages: ['pdf-parse', 'pdfjs-dist'],
+  // pdfjs-dist needs its worker file resolvable at runtime — keep it external.
+  serverExternalPackages: ['pdfjs-dist'],
   // Allow up to 50 MB file uploads for document processing
   experimental: {
     serverActions: {
