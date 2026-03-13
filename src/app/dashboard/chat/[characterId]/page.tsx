@@ -1,5 +1,5 @@
 import { auth } from '@/lib/auth'
-import { createAdminClient } from '@/lib/supabase'
+import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Plus, MessageSquare, Clock } from 'lucide-react'
@@ -21,8 +21,9 @@ export default async function CharacterChatListPage({
   const session = await auth()
   if (!session?.user) redirect('/login')
 
-  const userId = session.user.id ?? session.user.email
   const supabase = createAdminClient()
+  const effectiveUserId = await resolveUserIdByEmail(supabase, session.user.email!)
+  if (!effectiveUserId) redirect('/login')
 
   const { data: character } = await supabase
     .from('characters')
@@ -38,7 +39,7 @@ export default async function CharacterChatListPage({
     .from('conversations')
     .select('id, title, message_count, created_at, updated_at')
     .eq('character_id', characterId)
-    .eq('user_id', userId!)
+    .eq('user_id', effectiveUserId)
     .order('updated_at', { ascending: false })
 
   const convs = (conversations ?? []) as Conversation[]

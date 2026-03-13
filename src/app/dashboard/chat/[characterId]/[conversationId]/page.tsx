@@ -1,5 +1,5 @@
 import { auth } from '@/lib/auth'
-import { createAdminClient } from '@/lib/supabase'
+import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
 import { redirect, notFound } from 'next/navigation'
 import ChatInterface from '@/components/ChatInterface'
 
@@ -43,15 +43,16 @@ export default async function ConversationPage({
   const session = await auth()
   if (!session?.user) redirect('/login')
 
-  const userId = session.user.id ?? session.user.email
   const supabase = createAdminClient()
+  const effectiveUserId = await resolveUserIdByEmail(supabase, session.user.email!)
+  if (!effectiveUserId) redirect('/login')
 
   // Handle "new" conversation — create one and redirect to it
   if (conversationId === 'new') {
     const { data: conv } = await supabase
       .from('conversations')
       .insert({
-        user_id: userId!,
+        user_id: effectiveUserId,
         character_id: characterId,
         title: 'New conversation',
       })
@@ -67,7 +68,7 @@ export default async function ConversationPage({
     .from('conversations')
     .select('id, title, character_id, characters(id, name, description, system_prompt, avatar_url)')
     .eq('id', conversationId)
-    .eq('user_id', userId!)
+    .eq('user_id', effectiveUserId)
     .single()
 
   if (convErr || !conversation) notFound()
