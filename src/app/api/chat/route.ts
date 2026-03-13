@@ -141,31 +141,60 @@ async function _chatHandler(req: NextRequest): Promise<Response> {
 
   // RAG: embed the query and retrieve semantically similar chunks
   const queryEmbedding = await embedText(message, 'RETRIEVAL_QUERY')
-  const { data: chunks } = await supabase.rpc('match_chunks', {
+  const { data: rawChunks } = await supabase.rpc('match_chunks', {
     query_embedding: queryEmbedding,
     character_id_filter: character.id,
     match_count: 5,
     match_threshold: 0.3,
   })
-  const retrievedChunks = ((chunks ?? []) as { content: string }[]).map((c) => c.content)
+
+  type RawChunk = { id: string; content: string; similarity: number; document_id: string; chunk_index: number }
+  const typedChunks = (rawChunks ?? []) as RawChunk[]
+  const retrievedChunks = typedChunks.map((c) => c.content)
+
+  // Fetch source filenames for chunk metadata
+  let chunksMeta: { id: string; content: string; similarity: number; source_filename: string; chunk_index: number }[] = []
+  if (typedChunks.length > 0) {
+    const docIds = [...new Set(typedChunks.map((c) => c.document_id))]
+    const { data: docs } = await supabase.from('documents').select('id, filename').in('id', docIds)
+    const docMap = new Map((docs ?? []).map((d: { id: string; filename: string }) => [d.id, d.filename]))
+    chunksMeta = typedChunks.map((c) => ({
+      id: c.id,
+      content: c.content,
+      similarity: c.similarity,
+      source_filename: docMap.get(c.document_id) ?? 'unknown',
+      chunk_index: c.chunk_index,
+    }))
+  }
 
   // Generate streamed response
   const responseStream = await generateCharacterResponse(character, retrievedChunks, history, message)
 
   if (streamMode) {
-    // Stream to client, accumulate full text in background, then persist
+    // Stream to client with NDJSON prefix: first line is chunk metadata JSON
     let fullResponse = ''
+    const encoder = new TextEncoder()
     const transformStream = new TransformStream<Uint8Array, Uint8Array>({
+      start(controller) {
+        if (chunksMeta.length > 0) {
+          controller.enqueue(encoder.encode(JSON.stringify({ chunks: chunksMeta }) + '\n'))
+        }
+      },
       transform(chunk, controller) {
         const text = new TextDecoder().decode(chunk)
         fullResponse += text
         controller.enqueue(chunk)
       },
       async flush() {
-        // Persist assistant message after stream completes
+        // Persist assistant message with chunk metadata after stream completes
         await supabase
           .from('chat_messages')
-          .insert({ conversation_id: convId, role: 'assistant', content: fullResponse })
+          .insert({
+            conversation_id: convId,
+            role: 'assistant',
+            content: fullResponse,
+            retrieved_chunks: chunksMeta.length > 0 ? chunksMeta : null,
+          })
         await supabase
           .from('conversations')
           .update({ updated_at: new Date().toISOString() })
@@ -194,7 +223,12 @@ async function _chatHandler(req: NextRequest): Promise<Response> {
 
   await supabase
     .from('chat_messages')
-    .insert({ conversation_id: convId, role: 'assistant', content: fullResponse })
+    .insert({
+      conversation_id: convId,
+      role: 'assistant',
+      content: fullResponse,
+      retrieved_chunks: chunksMeta.length > 0 ? chunksMeta : null,
+    })
   await supabase
     .from('conversations')
     .update({ updated_at: new Date().toISOString() })
@@ -204,5 +238,6 @@ async function _chatHandler(req: NextRequest): Promise<Response> {
     response: fullResponse,
     conversationId: convId,
     characterId: character.id,
+    retrievedChunks: chunksMeta.length > 0 ? chunksMeta : undefined,
   })
 }

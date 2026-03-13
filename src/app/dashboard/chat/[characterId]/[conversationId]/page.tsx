@@ -3,11 +3,20 @@ import { createAdminClient } from '@/lib/supabase'
 import { redirect, notFound } from 'next/navigation'
 import ChatInterface from '@/components/ChatInterface'
 
+type RetrievedChunk = {
+  id: string
+  content: string
+  similarity: number
+  source_filename: string
+  chunk_index: number
+}
+
 type Message = {
   id: string
   role: 'user' | 'assistant'
   content: string
   created_at: string
+  retrieved_chunks?: RetrievedChunk[] | null
 }
 
 type Character = {
@@ -68,7 +77,7 @@ export default async function ConversationPage({
   // Load message history
   const { data: messages } = await supabase
     .from('chat_messages')
-    .select('id, role, content, created_at')
+    .select('id, role, content, created_at, retrieved_chunks')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true })
     .limit(100)

@@ -101,7 +101,7 @@ export async function generateCharacterResponse(
     retrievedChunks.length > 0
       ? `\n\nRelevant passages from your works:\n${retrievedChunks
           .map((c, i) => `[${i + 1}] ${c}`)
-          .join('\n\n')}`
+          .join('\n\n')}\n\nWhen your response draws on one of the passages above, include its number in square brackets (e.g. [1], [2]) near the relevant statement. Only cite when a passage genuinely informed your answer.`
       : ''
 
   const contents = [

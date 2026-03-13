@@ -43,7 +43,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   // Fetch messages for this conversation
   const { data: messages, error: msgErr } = await supabase
     .from('chat_messages')
-    .select('id, role, content, created_at')
+    .select('id, role, content, created_at, retrieved_chunks')
     .eq('conversation_id', id)
     .order('created_at', { ascending: true })
     .limit(limit)

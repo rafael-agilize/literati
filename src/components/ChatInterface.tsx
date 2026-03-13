@@ -2,13 +2,22 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { Send, Loader2, ArrowLeft, Plus, BookOpen } from 'lucide-react'
+import { Send, Loader2, ArrowLeft, Plus, BookOpen, ChevronDown, ChevronRight } from 'lucide-react'
+
+type RetrievedChunk = {
+  id: string
+  content: string
+  similarity: number
+  source_filename: string
+  chunk_index: number
+}
 
 type Message = {
   id: string
   role: 'user' | 'assistant'
   content: string
   created_at: string
+  retrieved_chunks?: RetrievedChunk[] | null
 }
 
 type Character = {
@@ -38,6 +47,7 @@ export default function ChatInterface({
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
+  const [streamingChunks, setStreamingChunks] = useState<RetrievedChunk[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -75,6 +85,7 @@ export default function ChatInterface({
     setError(null)
     setStreaming(true)
     setStreamingContent('')
+    setStreamingChunks(null)
 
     const controller = new AbortController()
     abortRef.current = controller
@@ -100,14 +111,51 @@ export default function ChatInterface({
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
+      let buffer = ''
+      let headerParsed = false
+      let chunks: RetrievedChunk[] | null = null
       let accumulated = ''
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        const chunk = decoder.decode(value, { stream: true })
-        accumulated += chunk
-        setStreamingContent(accumulated)
+        const text = decoder.decode(value, { stream: true })
+        buffer += text
+
+        if (!headerParsed) {
+          const newlineIdx = buffer.indexOf('\n')
+          if (newlineIdx !== -1) {
+            const firstLine = buffer.slice(0, newlineIdx)
+            try {
+              const parsed = JSON.parse(firstLine)
+              if (parsed.chunks) {
+                chunks = parsed.chunks
+                setStreamingChunks(chunks)
+              }
+            } catch {
+              // Not a JSON header — treat entire buffer as text
+              accumulated += buffer
+              setStreamingContent(accumulated)
+              headerParsed = true
+              continue
+            }
+            headerParsed = true
+            const rest = buffer.slice(newlineIdx + 1)
+            if (rest) {
+              accumulated += rest
+              setStreamingContent(accumulated)
+            }
+          }
+          // Still buffering first line, don't show text yet
+        } else {
+          accumulated += text
+          setStreamingContent(accumulated)
+        }
+      }
+
+      // If we never found a newline, the whole buffer is plain text
+      if (!headerParsed) {
+        accumulated = buffer
       }
 
       // Commit streamed message into the list
@@ -116,9 +164,11 @@ export default function ChatInterface({
         role: 'assistant',
         content: accumulated,
         created_at: new Date().toISOString(),
+        retrieved_chunks: chunks,
       }
       setMessages((prev) => [...prev, assistantMsg])
       setStreamingContent('')
+      setStreamingChunks(null)
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
       setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -193,6 +243,7 @@ export default function ChatInterface({
               role: 'assistant',
               content: streamingContent,
               created_at: new Date().toISOString(),
+              retrieved_chunks: streamingChunks,
             }}
             characterName={character.name}
             isStreaming={!streamingContent}
@@ -246,6 +297,131 @@ export default function ChatInterface({
   )
 }
 
+function CitationText({
+  content,
+  hoveredChunkIndex,
+  onCitationHover,
+}: {
+  content: string
+  hoveredChunkIndex: number | null
+  onCitationHover: (index: number | null) => void
+}) {
+  // Split content by citation markers like [1], [2], etc.
+  const parts = content.split(/(\[\d+\])/)
+
+  return (
+    <p className="text-sm text-stone-800 leading-relaxed whitespace-pre-wrap">
+      {parts.map((part, i) => {
+        const match = part.match(/^\[(\d+)\]$/)
+        if (match) {
+          const idx = parseInt(match[1], 10)
+          const isHighlighted = hoveredChunkIndex === idx
+          return (
+            <span
+              key={i}
+              onMouseEnter={() => onCitationHover(idx)}
+              onMouseLeave={() => onCitationHover(null)}
+              className={`inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 text-xs font-semibold rounded-full cursor-default transition-colors ${
+                isHighlighted
+                  ? 'bg-amber-400 text-white'
+                  : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+              }`}
+            >
+              {idx}
+            </span>
+          )
+        }
+        return <span key={i}>{part}</span>
+      })}
+    </p>
+  )
+}
+
+function ChunkPanel({
+  chunks,
+  hoveredChunkIndex,
+  onChunkHover,
+}: {
+  chunks: RetrievedChunk[]
+  hoveredChunkIndex: number | null
+  onChunkHover: (index: number | null) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set())
+
+  const toggleCard = (idx: number) => {
+    setExpandedCards((prev) => {
+      const next = new Set(prev)
+      if (next.has(idx)) next.delete(idx)
+      else next.add(idx)
+      return next
+    })
+  }
+
+  return (
+    <div className="w-full">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 text-xs text-stone-500 hover:text-stone-700 transition-colors py-1 px-2 rounded-lg hover:bg-stone-50"
+      >
+        {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        <BookOpen className="w-3 h-3" />
+        Sources ({chunks.length})
+      </button>
+      {expanded && (
+        <div className="mt-2 space-y-2">
+          {chunks.map((chunk, i) => {
+            const idx = i + 1
+            const isHighlighted = hoveredChunkIndex === idx
+            const isCardExpanded = expandedCards.has(idx)
+            const truncated = chunk.content.length > 150
+            const displayContent = isCardExpanded ? chunk.content : chunk.content.slice(0, 150)
+
+            return (
+              <div
+                key={chunk.id}
+                onMouseEnter={() => onChunkHover(idx)}
+                onMouseLeave={() => onChunkHover(null)}
+                className={`rounded-xl border p-3 transition-colors ${
+                  isHighlighted
+                    ? 'border-amber-400 bg-amber-50'
+                    : 'border-stone-200 bg-stone-50 hover:border-stone-300'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span
+                    className={`inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 text-xs font-semibold rounded-full ${
+                      isHighlighted ? 'bg-amber-400 text-white' : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
+                    {idx}
+                  </span>
+                  <span className="text-xs text-stone-500 truncate">{chunk.source_filename}</span>
+                  <span className="text-xs text-stone-400 ml-auto flex-shrink-0">
+                    {Math.round(chunk.similarity * 100)}%
+                  </span>
+                </div>
+                <p className="text-xs text-stone-600 leading-relaxed">
+                  {displayContent}
+                  {truncated && !isCardExpanded && '...'}
+                </p>
+                {truncated && (
+                  <button
+                    onClick={() => toggleCard(idx)}
+                    className="text-xs text-amber-600 hover:text-amber-700 mt-1"
+                  >
+                    {isCardExpanded ? 'Show less' : 'Show more'}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function MessageBubble({
   message,
   characterName,
@@ -256,6 +432,9 @@ function MessageBubble({
   isStreaming?: boolean
 }) {
   const isUser = message.role === 'user'
+  const [hoveredChunkIndex, setHoveredChunkIndex] = useState<number | null>(null)
+  const chunks = message.retrieved_chunks
+  const hasChunks = chunks && chunks.length > 0
 
   if (isUser) {
     return (
@@ -272,20 +451,35 @@ function MessageBubble({
       <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-xs shadow-sm flex-shrink-0 mt-0.5">
         {characterName.charAt(0)}
       </div>
-      <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-sm px-5 py-3 max-w-[75%] shadow-sm">
-        {isStreaming ? (
-          <div className="flex items-center gap-1.5">
-            <div className="flex gap-1">
-              <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+      <div className="flex flex-col gap-2 max-w-[75%]">
+        <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-sm px-5 py-3 shadow-sm">
+          {isStreaming ? (
+            <div className="flex items-center gap-1.5">
+              <div className="flex gap-1">
+                <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="text-xs text-stone-400">thinking...</span>
             </div>
-            <span className="text-xs text-stone-400">thinking...</span>
-          </div>
-        ) : (
-          <p className="text-sm text-stone-800 leading-relaxed whitespace-pre-wrap">
-            {message.content}
-          </p>
+          ) : hasChunks ? (
+            <CitationText
+              content={message.content}
+              hoveredChunkIndex={hoveredChunkIndex}
+              onCitationHover={setHoveredChunkIndex}
+            />
+          ) : (
+            <p className="text-sm text-stone-800 leading-relaxed whitespace-pre-wrap">
+              {message.content}
+            </p>
+          )}
+        </div>
+        {hasChunks && (
+          <ChunkPanel
+            chunks={chunks}
+            hoveredChunkIndex={hoveredChunkIndex}
+            onChunkHover={setHoveredChunkIndex}
+          />
         )}
       </div>
     </div>
