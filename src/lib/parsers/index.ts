@@ -15,6 +15,21 @@ export async function parseFile(
   const ext = filename.toLowerCase().split('.').pop() ?? ''
 
   if (ext === 'pdf' || mimeType === 'application/pdf') {
+    // pdfjs-dist (used by pdf-parse v2) requires DOMMatrix which is browser-only.
+    // Provide a minimal polyfill for Node.js / Vercel serverless environments.
+    if (typeof globalThis.DOMMatrix === 'undefined') {
+      // @ts-expect-error — lightweight shim sufficient for text extraction
+      globalThis.DOMMatrix = class DOMMatrix {
+        m11=1;m12=0;m13=0;m14=0;m21=0;m22=1;m23=0;m24=0;
+        m31=0;m32=0;m33=1;m34=0;m41=0;m42=0;m43=0;m44=1;
+        get a(){return this.m11} get b(){return this.m12} get c(){return this.m21}
+        get d(){return this.m22} get e(){return this.m41} get f(){return this.m42}
+        get is2D(){return true} get isIdentity(){return this.m11===1&&this.m12===0&&this.m21===0&&this.m22===1&&this.m41===0&&this.m42===0}
+        constructor(init?: string|number[]){
+          if(Array.isArray(init)&&init.length===6){[this.m11,this.m12,this.m21,this.m22,this.m41,this.m42]=init}
+        }
+      }
+    }
     const { PDFParse } = await import('pdf-parse')
     const parser = new PDFParse({ data: new Uint8Array(buffer) })
     const result = await parser.getText()
