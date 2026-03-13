@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { FileText, MessageSquare, Globe, Lock } from 'lucide-react'
+import { FileText, MessageSquare, Globe, Lock, Trash2 } from 'lucide-react'
 
 type Character = {
   id: string
@@ -16,7 +18,29 @@ type Character = {
 }
 
 export default function CharacterCard({ character }: { character: Character }) {
+  const router = useRouter()
+  const [deleting, setDeleting] = useState(false)
   const initial = character.name.charAt(0).toUpperCase()
+
+  async function handleDelete(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!confirm(`Delete "${character.name}"? This cannot be undone.`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/characters/${character.id}`, { method: 'DELETE' })
+      if (res.ok) {
+        router.refresh()
+      } else {
+        const body = await res.json().catch(() => null)
+        alert(body?.error ?? 'Failed to delete character')
+        setDeleting(false)
+      }
+    } catch {
+      alert('Failed to delete character')
+      setDeleting(false)
+    }
+  }
 
   // Generate a consistent color based on the character name
   const colors = [
@@ -33,25 +57,34 @@ export default function CharacterCard({ character }: { character: Character }) {
   const gradient = colors[colorIndex]
 
   return (
-    <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden hover:border-amber-300 hover:shadow-lg hover:shadow-amber-100 transition-all group">
+    <div className={`bg-white border border-stone-200 rounded-2xl overflow-hidden hover:border-amber-300 hover:shadow-lg hover:shadow-amber-100 transition-all group ${deleting ? 'opacity-50 pointer-events-none' : ''}`}>
       {/* Card header */}
       <div className={`bg-gradient-to-br ${gradient} p-6 relative`}>
         <div className="flex items-start justify-between">
           <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white text-2xl font-bold shadow-inner">
             {initial}
           </div>
-          <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-2.5 py-1 text-white text-xs font-medium">
-            {character.is_public ? (
-              <>
-                <Globe className="w-3 h-3" />
-                Public
-              </>
-            ) : (
-              <>
-                <Lock className="w-3 h-3" />
-                Private
-              </>
-            )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDelete}
+              className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 backdrop-blur-sm rounded-full p-1.5 text-white hover:bg-red-500/80"
+              title="Delete character"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+            <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-2.5 py-1 text-white text-xs font-medium">
+              {character.is_public ? (
+                <>
+                  <Globe className="w-3 h-3" />
+                  Public
+                </>
+              ) : (
+                <>
+                  <Lock className="w-3 h-3" />
+                  Private
+                </>
+              )}
+            </div>
           </div>
         </div>
         <h3 className="text-white font-bold text-lg mt-4 leading-tight">{character.name}</h3>
