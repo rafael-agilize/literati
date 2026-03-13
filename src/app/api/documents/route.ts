@@ -10,7 +10,7 @@ export const maxDuration = 600
 
 export async function POST(req: NextRequest) {
   const session = await auth()
-  const userId = session?.user?.id ?? session?.user?.email
+  const userId = session?.user?.email ?? session?.user?.id
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const session = await auth()
-  const userId = session?.user?.id ?? session?.user?.email
+  const userId = session?.user?.email ?? session?.user?.id
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

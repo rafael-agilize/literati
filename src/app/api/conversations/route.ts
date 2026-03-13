@@ -9,7 +9,7 @@ function resolveUserId(session: Session | null, req: NextRequest): string | null
   if (isApiAuth) {
     return req.headers.get('x-user-id')
   }
-  return session?.user?.id ?? session?.user?.email ?? null
+  return session?.user?.email ?? session?.user?.id ?? null
 }
 
 export async function GET(req: NextRequest) {

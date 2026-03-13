@@ -7,7 +7,7 @@ type RouteParams = { params: Promise<{ id: string }> }
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   const { id } = await params
   const session = await auth()
-  const userId = session?.user?.id ?? session?.user?.email
+  const userId = session?.user?.email ?? session?.user?.id
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

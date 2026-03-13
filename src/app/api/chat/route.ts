@@ -30,7 +30,7 @@ type Character = {
 
 async function _chatHandler(req: NextRequest): Promise<Response> {
   const session = await auth()
-  const userId = session?.user?.id ?? session?.user?.email
+  const userId = session?.user?.email ?? session?.user?.id
 
   const apiKey = req.headers.get('x-api-key')
   const isApiAuth = !!apiKey && apiKey === process.env.LITERATI_API_KEY

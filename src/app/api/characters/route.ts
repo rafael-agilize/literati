@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import type { Session } from 'next-auth'
 
 function resolveUserId(session: Session | null): string | null {
-  return session?.user?.id ?? session?.user?.email ?? null
+  return session?.user?.email ?? session?.user?.id ?? null
 }
 
 export async function GET(req: NextRequest) {
