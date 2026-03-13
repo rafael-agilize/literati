@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -13,6 +13,22 @@ export function createAdminClient() {
   return createClient(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false },
   })
+}
+
+/**
+ * Resolve the actual user `id` (PK) from the users table by email.
+ * Legacy users may have id=uuid while new users have id=email.
+ */
+export async function resolveUserIdByEmail(
+  supabase: SupabaseClient,
+  email: string
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .single()
+  return data?.id ?? null
 }
 
 /**

@@ -1,20 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { createAdminClient } from '@/lib/supabase'
+import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
 import type { Session } from 'next-auth'
-
-function resolveUserId(session: Session | null, req: NextRequest): string | null {
-  const apiKey = req.headers.get('x-api-key')
-  const isApiAuth = !!apiKey && apiKey === process.env.LITERATI_API_KEY
-  if (isApiAuth) {
-    return req.headers.get('x-user-id')
-  }
-  return session?.user?.email ?? session?.user?.id ?? null
-}
 
 export async function GET(req: NextRequest) {
   const session = (await auth()) as Session | null
-  const userId = resolveUserId(session, req)
+
+  const apiKey = req.headers.get('x-api-key')
+  const isApiAuth = !!apiKey && apiKey === process.env.LITERATI_API_KEY
+
+  const supabase = createAdminClient()
+  let userId: string | null = null
+
+  if (isApiAuth) {
+    userId = req.headers.get('x-user-id')
+  } else if (session?.user?.email) {
+    userId = await resolveUserIdByEmail(supabase, session.user.email)
+  }
+
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -22,7 +25,6 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const characterId = searchParams.get('characterId')
 
-  const supabase = createAdminClient()
   let query = supabase
     .from('conversations')
     .select('*, characters(name, avatar_url, description)')
@@ -43,7 +45,19 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = (await auth()) as Session | null
-  const userId = resolveUserId(session, req)
+
+  const apiKey = req.headers.get('x-api-key')
+  const isApiAuth = !!apiKey && apiKey === process.env.LITERATI_API_KEY
+
+  const supabase = createAdminClient()
+  let userId: string | null = null
+
+  if (isApiAuth) {
+    userId = req.headers.get('x-user-id')
+  } else if (session?.user?.email) {
+    userId = await resolveUserIdByEmail(supabase, session.user.email)
+  }
+
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -53,7 +67,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'characterId is required' }, { status: 400 })
   }
 
-  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('conversations')
     .insert({

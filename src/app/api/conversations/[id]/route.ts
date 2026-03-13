@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { createAdminClient } from '@/lib/supabase'
+import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
 
 type RouteParams = { params: Promise<{ id: string }> }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   const { id } = await params
   const session = await auth()
-  const userId = session?.user?.email ?? session?.user?.id
 
   const apiKey = req.headers.get('x-api-key')
   const isApiAuth = !!apiKey && apiKey === process.env.LITERATI_API_KEY
   const apiUserId = req.headers.get('x-user-id')
-  const effectiveUserId = userId ?? (isApiAuth ? apiUserId : null)
+
+  const supabase = createAdminClient()
+  let effectiveUserId: string | null = null
+
+  if (isApiAuth && apiUserId) {
+    effectiveUserId = apiUserId
+  } else if (session?.user?.email) {
+    effectiveUserId = await resolveUserIdByEmail(supabase, session.user.email)
+  }
 
   if (!effectiveUserId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -20,8 +27,6 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
   const { searchParams } = new URL(req.url)
   const limit = Math.min(parseInt(searchParams.get('limit') ?? '50'), 200)
-
-  const supabase = createAdminClient()
 
   // Fetch conversation with character details
   const { data: conversation, error: convErr } = await supabase
@@ -53,8 +58,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const { id } = await params
   const session = await auth()
-  const userId = session?.user?.email ?? session?.user?.id
-  if (!userId) {
+  const email = session?.user?.email
+  if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -64,6 +69,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 
   const supabase = createAdminClient()
+  const userId = await resolveUserIdByEmail(supabase, email)
+  if (!userId) {
+    return NextResponse.json({ error: 'User not found' }, { status: 401 })
+  }
+
   const { data, error } = await supabase
     .from('conversations')
     .update({ title: title.trim(), updated_at: new Date().toISOString() })
@@ -82,12 +92,17 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   const { id } = await params
   const session = await auth()
-  const userId = session?.user?.email ?? session?.user?.id
-  if (!userId) {
+  const email = session?.user?.email
+  if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const supabase = createAdminClient()
+  const userId = await resolveUserIdByEmail(supabase, email)
+  if (!userId) {
+    return NextResponse.json({ error: 'User not found' }, { status: 401 })
+  }
+
   const { error } = await supabase
     .from('conversations')
     .delete()

@@ -1,18 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { createAdminClient } from '@/lib/supabase'
-import { SupabaseClient } from '@supabase/supabase-js'
+import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
 
 type RouteParams = { params: Promise<{ id: string }> }
-
-async function resolveActualUserId(supabase: SupabaseClient, email: string): Promise<string | null> {
-  const { data } = await supabase
-    .from('users')
-    .select('id')
-    .eq('email', email)
-    .single()
-  return data?.id ?? null
-}
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   const { id } = await params
@@ -39,7 +29,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 
   const supabase = createAdminClient()
-  const userId = await resolveActualUserId(supabase, email)
+  const userId = await resolveUserIdByEmail(supabase, email)
   if (!userId) {
     return NextResponse.json({ error: 'User not found' }, { status: 401 })
   }
@@ -72,7 +62,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   }
 
   const supabase = createAdminClient()
-  const userId = await resolveActualUserId(supabase, email)
+  const userId = await resolveUserIdByEmail(supabase, email)
   if (!userId) {
     return NextResponse.json({ error: 'User not found' }, { status: 401 })
   }

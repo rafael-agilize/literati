@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { createAdminClient } from '@/lib/supabase'
+import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
 import { embedText, generateCharacterResponse } from '@/lib/gemini'
 
 export const maxDuration = 60
@@ -30,12 +30,34 @@ type Character = {
 
 async function _chatHandler(req: NextRequest): Promise<Response> {
   const session = await auth()
-  const userId = session?.user?.email ?? session?.user?.id
 
   const apiKey = req.headers.get('x-api-key')
   const isApiAuth = !!apiKey && apiKey === process.env.LITERATI_API_KEY
   const apiUserId = req.headers.get('x-user-id')
-  const effectiveUserId = userId ?? (isApiAuth ? apiUserId : null)
+
+  const supabase = createAdminClient()
+  let effectiveUserId: string | null = null
+
+  if (isApiAuth && apiUserId) {
+    // Ensure relay user exists in users table (FK constraint)
+    const relayEmail = `${apiUserId}@relay.literati`
+    let { data: relayUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', relayEmail)
+      .single()
+    if (!relayUser) {
+      const { data: created } = await supabase
+        .from('users')
+        .insert({ id: apiUserId, email: relayEmail, name: apiUserId })
+        .select('id')
+        .single()
+      relayUser = created
+    }
+    effectiveUserId = relayUser?.id ?? null
+  } else if (session?.user?.email) {
+    effectiveUserId = await resolveUserIdByEmail(supabase, session.user.email)
+  }
 
   if (!effectiveUserId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -52,17 +74,6 @@ async function _chatHandler(req: NextRequest): Promise<Response> {
 
   if (!message?.trim()) {
     return NextResponse.json({ error: 'message is required' }, { status: 400 })
-  }
-
-  const supabase = createAdminClient()
-
-  // Ensure relay user exists in users table (FK constraint)
-  if (isApiAuth && apiUserId) {
-    await supabase.from('users').upsert({
-      id: apiUserId,
-      email: `${apiUserId}@relay.literati`,
-      name: apiUserId,
-    }, { onConflict: 'id', ignoreDuplicates: true })
   }
 
   let convId = conversationId

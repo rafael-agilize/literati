@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { auth } from '@/lib/auth'
-import { createAdminClient } from '@/lib/supabase'
+import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
 import { parseFile } from '@/lib/parsers'
 import { chunkText } from '@/lib/chunker'
 import { embedBatch } from '@/lib/gemini'
@@ -10,8 +10,8 @@ export const maxDuration = 600
 
 export async function POST(req: NextRequest) {
   const session = await auth()
-  const userId = session?.user?.email ?? session?.user?.id
-  if (!userId) {
+  const email = session?.user?.email
+  if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -24,6 +24,10 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  const userId = await resolveUserIdByEmail(supabase, email)
+  if (!userId) {
+    return NextResponse.json({ error: 'User not found' }, { status: 401 })
+  }
 
   // Verify the character belongs to the requesting user
   const { data: character, error: charErr } = await supabase
@@ -65,8 +69,8 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const session = await auth()
-  const userId = session?.user?.email ?? session?.user?.id
-  if (!userId) {
+  const email = session?.user?.email
+  if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -77,6 +81,10 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  const userId = await resolveUserIdByEmail(supabase, email)
+  if (!userId) {
+    return NextResponse.json({ error: 'User not found' }, { status: 401 })
+  }
 
   // Verify ownership
   const { data: character } = await supabase

@@ -1,5 +1,5 @@
 import { auth } from '@/lib/auth'
-import { createAdminClient } from '@/lib/supabase'
+import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
 import Link from 'next/link'
 import { Plus, BookOpen, FileText, MessageSquare } from 'lucide-react'
 import CharacterCard from '@/components/CharacterCard'
@@ -18,14 +18,18 @@ type Character = {
 
 export default async function DashboardPage() {
   const session = await auth()
-  const userId = session?.user?.id ?? session?.user?.email
+  const email = session?.user?.email
 
   const supabase = createAdminClient()
-  const { data: characters } = await supabase
-    .from('characters')
-    .select('*')
-    .eq('user_id', userId!)
-    .order('updated_at', { ascending: false })
+  const userId = email ? await resolveUserIdByEmail(supabase, email) : null
+
+  const { data: characters } = userId
+    ? await supabase
+        .from('characters')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+    : { data: [] }
 
   const list = (characters ?? []) as Character[]
 

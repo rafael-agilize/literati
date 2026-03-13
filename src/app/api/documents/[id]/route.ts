@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { createAdminClient } from '@/lib/supabase'
+import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
 
 type RouteParams = { params: Promise<{ id: string }> }
 
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   const { id } = await params
   const session = await auth()
-  const userId = session?.user?.email ?? session?.user?.id
-  if (!userId) {
+  const email = session?.user?.email
+  if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const supabase = createAdminClient()
+  const userId = await resolveUserIdByEmail(supabase, email)
+  if (!userId) {
+    return NextResponse.json({ error: 'User not found' }, { status: 401 })
+  }
 
   // Verify the document belongs to a character owned by this user
   const { data: doc } = await supabase
