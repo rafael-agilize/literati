@@ -5,8 +5,8 @@ import { parseFile } from '@/lib/parsers'
 import { chunkText } from '@/lib/chunker'
 import { embedBatch } from '@/lib/gemini'
 
-// Allow up to 5 minutes for large file processing
-export const maxDuration = 300
+// Allow up to 10 minutes — large files may need retries on Gemini rate limits
+export const maxDuration = 600
 
 export async function POST(req: NextRequest) {
   const session = await auth()
