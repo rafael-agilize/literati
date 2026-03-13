@@ -3,18 +3,14 @@ import { auth } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase'
 import type { Session } from 'next-auth'
 
-function resolveUserId(session: Session | null): string | null {
-  return session?.user?.email ?? session?.user?.id ?? null
-}
-
 export async function GET(req: NextRequest) {
   const session = (await auth()) as Session | null
-  const userId = resolveUserId(session)
+  const userEmail = session?.user?.email ?? null
 
   const apiKey = req.headers.get('x-api-key')
   const isApiAuth = !!apiKey && apiKey === process.env.LITERATI_API_KEY
 
-  if (!userId && !isApiAuth) {
+  if (!userEmail && !isApiAuth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -24,9 +20,18 @@ export async function GET(req: NextRequest) {
     .select('id, name, description, avatar_url, is_public, document_count, chunk_count, created_at, updated_at')
     .order('created_at', { ascending: false })
 
-  if (userId && !isApiAuth) {
-    // Regular user: their own characters only
-    query = query.eq('user_id', userId)
+  if (userEmail && !isApiAuth) {
+    // Resolve actual user id from email (handles legacy uuid-based ids)
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', userEmail)
+      .single()
+
+    if (!userRow) {
+      return NextResponse.json({ characters: [] })
+    }
+    query = query.eq('user_id', userRow.id)
   } else {
     // API auth: return only public characters
     query = query.eq('is_public', true)
@@ -42,13 +47,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = (await auth()) as Session | null
-  const userId = resolveUserId(session)
+  const userIdFromSession = session?.user?.email ?? session?.user?.id ?? null
 
   const apiKey = req.headers.get('x-api-key')
   const isApiAuth = !!apiKey && apiKey === process.env.LITERATI_API_KEY
   const apiUserId = req.headers.get('x-user-id')
 
-  const effectiveUserId = userId ?? (isApiAuth && apiUserId ? apiUserId : null)
+  const effectiveUserId = userIdFromSession ?? (isApiAuth && apiUserId ? apiUserId : null)
   if (!effectiveUserId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -66,19 +71,39 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  const userEmail = isApiAuth
+    ? `${effectiveUserId}@relay.literati`
+    : session?.user?.email ?? effectiveUserId
 
-  // Ensure user exists in users table (needed for FK constraint)
-  await supabase.from('users').upsert({
-    id: effectiveUserId,
-    email: isApiAuth ? `${effectiveUserId}@relay.literati` : session?.user?.email ?? effectiveUserId,
-    name: isApiAuth ? effectiveUserId : session?.user?.name ?? null,
-    image: isApiAuth ? null : session?.user?.image ?? null,
-  }, { onConflict: 'id', ignoreDuplicates: true })
+  // Look up or create user — never assume id = email
+  let { data: userRow } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', userEmail)
+    .single()
+
+  if (!userRow) {
+    const { data: created } = await supabase
+      .from('users')
+      .insert({
+        id: effectiveUserId,
+        email: userEmail,
+        name: isApiAuth ? effectiveUserId : session?.user?.name ?? null,
+        image: isApiAuth ? null : session?.user?.image ?? null,
+      })
+      .select('id')
+      .single()
+    userRow = created
+  }
+
+  if (!userRow) {
+    return NextResponse.json({ error: 'Failed to resolve user' }, { status: 500 })
+  }
 
   const { data, error } = await supabase
     .from('characters')
     .insert({
-      user_id: effectiveUserId,
+      user_id: userRow.id,
       name: name.trim(),
       description: description?.trim() ?? null,
       system_prompt: system_prompt?.trim() ?? null,

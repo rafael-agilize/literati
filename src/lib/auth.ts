@@ -14,20 +14,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user }) {
       if (!user.email) return false
       const supabase = createAdminClient()
-      // Use email as stable ID — NextAuth generates random UUIDs per sign-in
-      // without a DB adapter, so user.id is different on each device.
-      const stableId = user.email
-      const { error } = await supabase.from('users').upsert(
-        {
-          id: stableId,
+
+      const { data: existing } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', user.email)
+        .single()
+
+      if (existing) {
+        await supabase
+          .from('users')
+          .update({ name: user.name ?? null, image: user.image ?? null })
+          .eq('id', existing.id)
+      } else {
+        await supabase.from('users').insert({
+          id: user.email,
           email: user.email,
           name: user.name ?? null,
           image: user.image ?? null,
-        },
-        { onConflict: 'email' }
-      )
-      if (error) {
-        console.error('[auth] Failed to upsert user:', error.message)
+        })
       }
       return true
     },
@@ -38,9 +43,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session
     },
     async jwt({ token, user }) {
-      if (user) {
-        // Always use email as the stable user ID across devices
-        token.sub = user.email || token.sub
+      if (user?.email) {
+        const supabase = createAdminClient()
+        const { data } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', user.email)
+          .single()
+        token.sub = data?.id ?? user.email
       }
       return token
     },
