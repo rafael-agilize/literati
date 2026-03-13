@@ -144,7 +144,7 @@ async function _chatHandler(req: NextRequest): Promise<Response> {
   const { data: rawChunks } = await supabase.rpc('match_chunks', {
     query_embedding: queryEmbedding,
     character_id_filter: character.id,
-    match_count: 5,
+    match_count: 8,
     match_threshold: 0.3,
   })
 

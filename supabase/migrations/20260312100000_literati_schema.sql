@@ -87,7 +87,7 @@ create index if not exists idx_chunks_embedding on document_chunks
 create or replace function match_chunks(
   query_embedding vector(1536),
   character_id_filter uuid,
-  match_count int default 5,
+  match_count int default 8,
   match_threshold float default 0.3
 )
 returns table (
