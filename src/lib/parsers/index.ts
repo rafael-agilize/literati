@@ -1,5 +1,4 @@
 import { inflateRawSync } from 'zlib'
-import path from 'path'
 
 /**
  * Parse a file buffer into plain text.
@@ -134,17 +133,9 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
   }
 
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = path.resolve(
-    require.resolve('pdfjs-dist/package.json'),
-    '../legacy/build/pdf.worker.mjs'
-  )
 
   const doc = await pdfjsLib.getDocument({
     data: new Uint8Array(buffer),
-    standardFontDataUrl: path.resolve(
-      require.resolve('pdfjs-dist/package.json'),
-      '../standard_fonts/'
-    ) + '/',
     verbosity: 0,
   }).promise
 
