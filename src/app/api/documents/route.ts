@@ -139,12 +139,20 @@ async function processDocument(
       embedding: JSON.stringify(embeddings[i]),
     }))
 
-    // Insert in batches of 500 to avoid payload size limits
-    const INSERT_BATCH = 500
+    // Insert in batches of 100 to stay within Postgres statement_timeout
+    const INSERT_BATCH = 100
     for (let i = 0; i < chunkRows.length; i += INSERT_BATCH) {
       const batch = chunkRows.slice(i, i + INSERT_BATCH)
-      const { error: insertErr } = await supabase.from('document_chunks').insert(batch)
-      if (insertErr) throw new Error(`Chunk insert failed at batch ${i}: ${insertErr.message}`)
+      let lastErr: string | null = null
+
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { error: insertErr } = await supabase.from('document_chunks').insert(batch)
+        if (!insertErr) { lastErr = null; break }
+        lastErr = insertErr.message
+        if (attempt < 2) await new Promise(r => setTimeout(r, 1000 * 2 ** attempt))
+      }
+
+      if (lastErr) throw new Error(`Chunk insert failed at batch ${i}: ${lastErr}`)
     }
     console.log(`[documents] Inserted ${chunkRows.length} chunks in ${Math.ceil(chunkRows.length / INSERT_BATCH)} batches`)
 
