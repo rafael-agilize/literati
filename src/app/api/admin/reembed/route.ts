@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { chunkText } from '@/lib/chunker'
 import { embedBatch } from '@/lib/gemini'
+import { generateContextualPrefixes } from '@/lib/contextual-chunker'
 
 // Allow up to 10 minutes for large corpora
 export const maxDuration = 600
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
   // Determine which documents to re-embed
   let query = supabase
     .from('documents')
-    .select('id, character_id, raw_text, status')
+    .select('id, character_id, raw_text, status, filename')
     .eq('status', 'ready')
 
   if (documentId) {
@@ -91,8 +92,12 @@ export async function POST(req: NextRequest) {
       const chunks = chunkText(text)
       if (chunks.length === 0) continue
 
-      // Embed new chunks
-      const embeddings = await embedBatch(chunks, 'RETRIEVAL_DOCUMENT')
+      // Generate contextual prefixes
+      const docTitle = (doc as { filename?: string }).filename ?? 'Unknown Document'
+      const contextualChunks = await generateContextualPrefixes(chunks, docTitle, text)
+
+      // Embed context-enriched chunks
+      const embeddings = await embedBatch(contextualChunks, 'RETRIEVAL_DOCUMENT')
 
       // Delete old chunks
       await supabase.from('document_chunks').delete().eq('document_id', doc.id)
@@ -103,9 +108,10 @@ export async function POST(req: NextRequest) {
         document_id: doc.id,
         character_id: doc.character_id,
         content,
+        content_with_context: contextualChunks[i],
         chunk_index: i,
         embedding: JSON.stringify(embeddings[i]),
-        embedding_version: 2,
+        embedding_version: 3,
       }))
 
       for (let i = 0; i < chunkRows.length; i += INSERT_BATCH) {

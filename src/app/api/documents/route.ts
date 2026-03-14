@@ -4,6 +4,7 @@ import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
 import { parseFile } from '@/lib/parsers'
 import { chunkText } from '@/lib/chunker'
 import { embedBatch } from '@/lib/gemini'
+import { generateContextualPrefixes } from '@/lib/contextual-chunker'
 
 // Allow up to 10 minutes — large files may need retries on Gemini rate limits
 export const maxDuration = 600
@@ -141,17 +142,20 @@ async function processDocument(
       return
     }
 
+    console.log(`[documents] Generating contextual prefixes for ${chunks.length} chunks...`)
+    const contextualChunks = await generateContextualPrefixes(chunks, filename, text)
     console.log(`[documents] Embedding ${chunks.length} chunks (batch size 100)...`)
-    const embeddings = await embedBatch(chunks, 'RETRIEVAL_DOCUMENT')
+    const embeddings = await embedBatch(contextualChunks, 'RETRIEVAL_DOCUMENT')
     console.log(`[documents] Embedding complete, inserting into DB...`)
 
     const chunkRows = chunks.map((content, i) => ({
       document_id: documentId,
       character_id: characterId,
       content,
+      content_with_context: contextualChunks[i],
       chunk_index: i,
       embedding: JSON.stringify(embeddings[i]),
-      embedding_version: 2,
+      embedding_version: 3,
     }))
 
     // Insert in batches of 100 to stay within Postgres statement_timeout
