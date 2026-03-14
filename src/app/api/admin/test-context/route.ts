@@ -16,11 +16,11 @@ export async function GET(req: NextRequest) {
     .eq('character_id', 'a25cdae3-4863-4cea-8472-2e737af54029')
     .order('chunk_count', { ascending: true })
 
-  // Check content_with_context on a few chunks
+  // Check content_with_context on re-embedded chunks (Estâncias de Dzyan)
   const { data: chunks } = await supabase
     .from('document_chunks')
     .select('id, chunk_index, content_with_context, embedding_version')
-    .eq('character_id', 'a25cdae3-4863-4cea-8472-2e737af54029')
+    .eq('document_id', 'fe7c815e-a272-406e-bd23-fe9d5dac6b93')
     .order('chunk_index', { ascending: true })
     .limit(3)
 
