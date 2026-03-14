@@ -103,7 +103,8 @@ export async function POST(req: NextRequest) {
       const embeddings = await embedBatch(contextualChunks, 'RETRIEVAL_DOCUMENT')
 
       // Insert new chunks first (new IDs, no PK conflict)
-      const INSERT_BATCH = 100
+      // Small batches to avoid Supabase statement timeout with vector columns
+      const INSERT_BATCH = 20
       const chunkRows = chunks.map((content, i) => ({
         document_id: doc.id,
         character_id: doc.character_id,

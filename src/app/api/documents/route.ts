@@ -160,8 +160,8 @@ async function processDocument(
       embedding_version: 3,
     }))
 
-    // Insert in batches of 100 to stay within Postgres statement_timeout
-    const INSERT_BATCH = 100
+    // Small batches to avoid Supabase statement timeout with vector columns
+    const INSERT_BATCH = 20
     for (let i = 0; i < chunkRows.length; i += INSERT_BATCH) {
       const batch = chunkRows.slice(i, i + INSERT_BATCH)
       let lastErr: string | null = null
