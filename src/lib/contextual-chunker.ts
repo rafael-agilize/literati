@@ -43,21 +43,33 @@ Return a JSON array of strings, one context prefix per passage.`
         config: {
           responseMimeType: 'application/json',
           temperature: 0,
-          maxOutputTokens: 2048,
+          maxOutputTokens: 4096,
         },
       })
 
       const text = response.text ?? ''
-      const prefixes: unknown = JSON.parse(text)
+      let prefixes: unknown
+      try {
+        prefixes = JSON.parse(text)
+      } catch {
+        // Attempt to repair truncated JSON array: close any open string and array
+        const repaired = text.replace(/,?\s*"?[^"]*$/, '') + ']'
+        try {
+          prefixes = JSON.parse(repaired)
+        } catch {
+          throw new Error(`Unparseable JSON (${text.length} chars)`)
+        }
+      }
 
-      if (!Array.isArray(prefixes) || prefixes.length !== batch.length) {
-        console.warn(`[contextual-chunker] prefix count mismatch at batch ${i}, using originals`)
+      if (!Array.isArray(prefixes)) {
+        console.warn(`[contextual-chunker] non-array response at batch ${i}, using originals`)
         for (let j = 0; j < batch.length; j++) {
           result[i + j] = batch[j]
         }
       } else {
+        // Use whatever prefixes we got; fall back to original for any missing ones
         for (let j = 0; j < batch.length; j++) {
-          const prefix = typeof prefixes[j] === 'string' ? (prefixes[j] as string) : ''
+          const prefix = j < prefixes.length && typeof prefixes[j] === 'string' ? (prefixes[j] as string) : ''
           result[i + j] = prefix ? `${prefix}\n\n${batch[j]}` : batch[j]
         }
       }
