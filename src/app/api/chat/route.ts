@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
 import { embedText, generateCharacterResponse } from '@/lib/gemini'
+import { deduplicateChunks } from '@/lib/chunker'
 
 export const maxDuration = 60
 
@@ -153,7 +154,16 @@ async function _chatHandler(req: NextRequest): Promise<Response> {
 
   type RawChunk = { id: string; content: string; similarity: number; text_score: number; rrf_score: number; document_id: string; chunk_index: number }
   const typedChunks = ((rawChunks ?? []) as RawChunk[]).slice(0, 8)
-  const retrievedChunks = typedChunks.map((c) => c.content)
+
+  // Sort by document position for natural reading order
+  typedChunks.sort((a, b) =>
+    a.document_id === b.document_id
+      ? a.chunk_index - b.chunk_index
+      : a.document_id.localeCompare(b.document_id)
+  )
+
+  // Deduplicate overlapping content between adjacent same-document chunks
+  const retrievedChunks = deduplicateChunks(typedChunks)
 
   // Fetch source filenames for chunk metadata
   let chunksMeta: { id: string; content: string; similarity: number; text_score: number; rrf_score: number; source_filename: string; chunk_index: number }[] = []

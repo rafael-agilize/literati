@@ -53,3 +53,46 @@ export function chunkText(text: string): string[] {
 
   return chunks.filter((c) => estimateTokens(c) >= MIN_CHUNK_TOKENS)
 }
+
+/**
+ * Deduplicate overlapping content from consecutive chunks of the same document.
+ * Expects chunks already sorted by (document_id, chunk_index).
+ * Trims the longest shared prefix/suffix overlap between adjacent same-document chunks.
+ */
+export function deduplicateChunks(
+  chunks: { content: string; document_id: string; chunk_index: number }[]
+): string[] {
+  if (chunks.length === 0) return []
+
+  const result: string[] = [chunks[0].content]
+
+  for (let i = 1; i < chunks.length; i++) {
+    const prev = chunks[i - 1]
+    const curr = chunks[i]
+
+    if (
+      curr.document_id === prev.document_id &&
+      curr.chunk_index === prev.chunk_index + 1
+    ) {
+      // Find longest suffix of prev.content that matches a prefix of curr.content
+      const prevContent = prev.content
+      const currContent = curr.content
+      const maxCheck = Math.min(prevContent.length, currContent.length, CHUNK_OVERLAP_TOKENS * 4 * 2)
+      let overlapLen = 0
+
+      for (let len = 1; len <= maxCheck; len++) {
+        const suffix = prevContent.slice(-len)
+        const prefix = currContent.slice(0, len)
+        if (suffix === prefix) {
+          overlapLen = len
+        }
+      }
+
+      result.push(overlapLen > 0 ? currContent.slice(overlapLen).trimStart() || currContent : currContent)
+    } else {
+      result.push(curr.content)
+    }
+  }
+
+  return result
+}
