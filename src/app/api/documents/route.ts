@@ -122,7 +122,14 @@ async function processDocument(
   try {
     console.log(`[documents] Parsing file "${filename}" for doc ${documentId}`)
     const text = await parseFile(buffer, filename, mimeType)
-    console.log(`[documents] Parsed ${text.length} chars, chunking...`)
+    console.log(`[documents] Parsed ${text.length} chars, saving raw text and chunking...`)
+
+    // Save raw text for future re-chunking without re-parsing
+    await supabase
+      .from('documents')
+      .update({ raw_text: text })
+      .eq('id', documentId)
+
     const chunks = chunkText(text)
     console.log(`[documents] Created ${chunks.length} chunks`)
 
@@ -143,8 +150,8 @@ async function processDocument(
       character_id: characterId,
       content,
       chunk_index: i,
-      // pgvector accepts a JSON array string as input
       embedding: JSON.stringify(embeddings[i]),
+      embedding_version: 2,
     }))
 
     // Insert in batches of 100 to stay within Postgres statement_timeout
