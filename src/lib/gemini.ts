@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
+export const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
 const EMBEDDING_MODEL = process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-2-preview'
 const GENERATION_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash'

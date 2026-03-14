@@ -49,7 +49,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     .limit(limit)
 
   if (msgErr) {
-    return NextResponse.json({ error: msgErr.message }, { status: 500 })
+    console.error('[conversations] messages query error:', msgErr.message)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 
   return NextResponse.json({ conversation, messages: messages ?? [] })
@@ -83,7 +84,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .single()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[conversations] PATCH error:', error.message)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 
   return NextResponse.json({ conversation: data })
@@ -110,7 +112,8 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     .eq('user_id', userId)
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[conversations] DELETE error:', error.message)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 
   return NextResponse.json({ success: true })

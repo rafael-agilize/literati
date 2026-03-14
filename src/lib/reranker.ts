@@ -1,6 +1,4 @@
-import { GoogleGenAI } from '@google/genai'
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
+import { ai } from '@/lib/gemini'
 const RERANK_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
 
 /**

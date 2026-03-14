@@ -18,11 +18,6 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 }
 
-// Renamed original handler
-async function chatHandler(req: NextRequest): Promise<Response> {
-  return _chatHandler(req)
-}
-
 type Character = {
   id: string
   name: string
@@ -30,7 +25,7 @@ type Character = {
   system_prompt: string | null
 }
 
-async function _chatHandler(req: NextRequest): Promise<Response> {
+async function chatHandler(req: NextRequest): Promise<Response> {
   const session = await auth()
 
   const apiKey = req.headers.get('x-api-key')
@@ -137,9 +132,13 @@ async function _chatHandler(req: NextRequest): Promise<Response> {
   const history = ((historyRows ?? []) as { role: 'user' | 'assistant'; content: string }[]).reverse()
 
   // Persist the user's message
-  await supabase
+  const { error: msgErr } = await supabase
     .from('chat_messages')
     .insert({ conversation_id: convId, role: 'user', content: message.trim() })
+  if (msgErr) {
+    console.error('[chat] Failed to save user message:', msgErr.message)
+    return NextResponse.json({ error: 'Failed to save message' }, { status: 500 })
+  }
 
   // RAG: embed the query and retrieve via hybrid search (vector + BM25)
   const queryEmbedding = await embedText(message, 'RETRIEVAL_QUERY')
@@ -206,18 +205,24 @@ async function _chatHandler(req: NextRequest): Promise<Response> {
       },
       async flush() {
         // Persist assistant message with chunk metadata after stream completes
-        await supabase
-          .from('chat_messages')
-          .insert({
-            conversation_id: convId,
-            role: 'assistant',
-            content: fullResponse,
-            retrieved_chunks: chunksMeta.length > 0 ? chunksMeta : null,
-          })
-        await supabase
-          .from('conversations')
-          .update({ updated_at: new Date().toISOString() })
-          .eq('id', convId)
+        try {
+          const { error: insertErr } = await supabase
+            .from('chat_messages')
+            .insert({
+              conversation_id: convId,
+              role: 'assistant',
+              content: fullResponse,
+              retrieved_chunks: chunksMeta.length > 0 ? chunksMeta : null,
+            })
+          if (insertErr) console.error('[chat] Failed to persist assistant message:', insertErr.message)
+          const { error: updateErr } = await supabase
+            .from('conversations')
+            .update({ updated_at: new Date().toISOString() })
+            .eq('id', convId)
+          if (updateErr) console.error('[chat] Failed to update conversation timestamp:', updateErr.message)
+        } catch (err) {
+          console.error('[chat] flush error:', err instanceof Error ? err.message : err)
+        }
       },
     })
 
@@ -240,7 +245,7 @@ async function _chatHandler(req: NextRequest): Promise<Response> {
     fullResponse += new TextDecoder().decode(value)
   }
 
-  await supabase
+  const { error: insertErr } = await supabase
     .from('chat_messages')
     .insert({
       conversation_id: convId,
@@ -248,10 +253,12 @@ async function _chatHandler(req: NextRequest): Promise<Response> {
       content: fullResponse,
       retrieved_chunks: chunksMeta.length > 0 ? chunksMeta : null,
     })
-  await supabase
+  if (insertErr) console.error('[chat] Failed to persist assistant message:', insertErr.message)
+  const { error: updateErr } = await supabase
     .from('conversations')
     .update({ updated_at: new Date().toISOString() })
     .eq('id', convId)
+  if (updateErr) console.error('[chat] Failed to update conversation timestamp:', updateErr.message)
 
   return NextResponse.json({
     response: fullResponse,

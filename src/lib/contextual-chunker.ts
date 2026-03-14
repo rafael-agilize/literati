@@ -1,6 +1,4 @@
-import { GoogleGenAI } from '@google/genai'
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
+import { ai } from '@/lib/gemini'
 const MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
 const BATCH_SIZE = 10
 const BATCH_DELAY_MS = 500

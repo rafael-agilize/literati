@@ -83,11 +83,13 @@ export async function POST(req: NextRequest) {
           .eq('id', doc.id)
       }
 
-      // Count old chunks before deletion
-      const { count: oldCount } = await supabase
+      // Collect old chunk IDs before processing (for safe delete-after-insert)
+      const { data: oldChunkRows, count: oldCount } = await supabase
         .from('document_chunks')
-        .select('id', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .eq('document_id', doc.id)
+
+      const oldChunkIds = (oldChunkRows ?? []).map((r: { id: string }) => r.id)
 
       // Re-chunk with token-based chunker
       const chunks = chunkText(text)
@@ -100,10 +102,7 @@ export async function POST(req: NextRequest) {
       // Embed context-enriched chunks
       const embeddings = await embedBatch(contextualChunks, 'RETRIEVAL_DOCUMENT')
 
-      // Delete old chunks
-      await supabase.from('document_chunks').delete().eq('document_id', doc.id)
-
-      // Insert new chunks in batches
+      // Insert new chunks first (new IDs, no PK conflict)
       const INSERT_BATCH = 100
       const chunkRows = chunks.map((content, i) => ({
         document_id: doc.id,
@@ -119,6 +118,15 @@ export async function POST(req: NextRequest) {
         const batch = chunkRows.slice(i, i + INSERT_BATCH)
         const { error: insertErr } = await supabase.from('document_chunks').insert(batch)
         if (insertErr) throw new Error(`Insert failed at batch ${i}: ${insertErr.message}`)
+      }
+
+      // Delete old chunks by ID (safe: if insert failed above, old chunks are preserved)
+      if (oldChunkIds.length > 0) {
+        const DELETE_BATCH = 100
+        for (let i = 0; i < oldChunkIds.length; i += DELETE_BATCH) {
+          const batch = oldChunkIds.slice(i, i + DELETE_BATCH)
+          await supabase.from('document_chunks').delete().in('id', batch)
+        }
       }
 
       // Update document metadata

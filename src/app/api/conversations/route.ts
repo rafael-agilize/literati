@@ -25,11 +25,14 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const characterId = searchParams.get('characterId')
 
+  const limitParam = Math.min(Math.max(parseInt(searchParams.get('limit') ?? '50'), 1), 200)
+
   let query = supabase
     .from('conversations')
     .select('*, characters(name, avatar_url, description)')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
+    .limit(limitParam)
 
   if (characterId) {
     query = query.eq('character_id', characterId)
@@ -37,7 +40,8 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await query
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[conversations] GET error:', error.message)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 
   return NextResponse.json({ conversations: data })
@@ -78,7 +82,8 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[conversations] POST error:', error.message)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 
   return NextResponse.json({ conversation: data }, { status: 201 })

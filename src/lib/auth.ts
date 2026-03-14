@@ -22,17 +22,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         .single()
 
       if (existing) {
-        await supabase
+        const { error } = await supabase
           .from('users')
           .update({ name: user.name ?? null, image: user.image ?? null })
           .eq('id', existing.id)
+        if (error) {
+          console.error('[auth] Failed to update user:', error.message)
+          return false
+        }
       } else {
-        await supabase.from('users').insert({
+        const { error } = await supabase.from('users').insert({
           id: user.email,
           email: user.email,
           name: user.name ?? null,
           image: user.image ?? null,
         })
+        if (error) {
+          console.error('[auth] Failed to create user:', error.message)
+          return false
+        }
       }
       return true
     },

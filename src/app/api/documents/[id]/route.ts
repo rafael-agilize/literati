@@ -40,13 +40,11 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
   }
 
-  // Delete chunks first (document_chunks has ON DELETE CASCADE, but let's be explicit)
-  await supabase.from('document_chunks').delete().eq('document_id', id)
-
-  // Delete the document record
+  // Delete the document record (chunks are removed via ON DELETE CASCADE)
   const { error } = await supabase.from('documents').delete().eq('id', id)
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[documents] DELETE error:', error.message)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 
   // Decrement character counters
