@@ -67,7 +67,7 @@ export default function CharacterCard({ character }: { character: Character }) {
           <div className="flex items-center gap-2">
             <button
               onClick={handleDelete}
-              className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 backdrop-blur-sm rounded-full p-1.5 text-white hover:bg-red-500/80"
+              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-white/20 backdrop-blur-sm rounded-full p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-white hover:bg-red-500/80"
               title="Delete character"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -117,13 +117,13 @@ export default function CharacterCard({ character }: { character: Character }) {
         <div className="flex gap-2">
           <Link
             href={`/dashboard/chat/${character.id}`}
-            className="flex-1 text-center bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:from-amber-600 hover:to-orange-600 transition-all shadow-sm"
+            className="flex-1 text-center bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:from-amber-600 hover:to-orange-600 transition-all shadow-sm min-h-[44px] flex items-center justify-center"
           >
             Chat
           </Link>
           <Link
             href={`/dashboard/characters/${character.id}`}
-            className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 text-sm font-medium hover:bg-stone-50 hover:border-stone-300 transition-all"
+            className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 text-sm font-medium hover:bg-stone-50 hover:border-stone-300 transition-all min-h-[44px] flex items-center justify-center"
           >
             Manage
           </Link>

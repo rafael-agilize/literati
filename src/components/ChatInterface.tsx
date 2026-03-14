@@ -191,12 +191,12 @@ export default function ChatInterface({
   const characterInitial = character.name.charAt(0).toUpperCase()
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-dvh">
       {/* Top nav bar */}
-      <header className="bg-white border-b border-stone-200 px-6 py-4 flex items-center gap-4 flex-shrink-0">
+      <header className="bg-white border-b border-stone-200 px-3 py-3 md:px-6 md:py-4 flex items-center gap-4 flex-shrink-0">
         <Link
           href={`/dashboard/chat/${characterId}`}
-          className="text-stone-400 hover:text-stone-700 transition-colors p-1.5 rounded-lg hover:bg-stone-100"
+          className="text-stone-400 hover:text-stone-700 transition-colors p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-stone-100"
         >
           <ArrowLeft className="w-5 h-5" />
         </Link>
@@ -212,7 +212,7 @@ export default function ChatInterface({
         <Link
           href={`/dashboard/chat/${characterId}/new`}
           title="New conversation"
-          className="flex items-center gap-1.5 text-xs text-stone-500 hover:text-stone-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-stone-100 border border-stone-200"
+          className="flex items-center gap-1.5 text-xs text-stone-500 hover:text-stone-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-stone-100 border border-stone-200 min-h-[44px]"
         >
           <Plus className="w-3.5 h-3.5" />
           New
@@ -220,7 +220,7 @@ export default function ChatInterface({
       </header>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+      <div className="flex-1 overflow-y-auto px-3 py-4 md:px-6 md:py-6 space-y-6">
         {messages.length === 0 && !streaming && (
           <EmptyConversation
             character={character}
@@ -262,7 +262,7 @@ export default function ChatInterface({
       </div>
 
       {/* Input area */}
-      <div className="bg-white border-t border-stone-200 px-6 py-4 flex-shrink-0">
+      <div className="bg-white border-t border-stone-200 px-3 py-3 md:px-6 md:py-4 flex-shrink-0" style={{ paddingBottom: 'max(0.75rem, var(--safe-area-bottom))' }}>
         <div className="flex items-end gap-3 max-w-4xl mx-auto">
           <div className="flex-1 bg-stone-50 border border-stone-200 rounded-2xl px-4 py-3 focus-within:ring-2 focus-within:ring-amber-400 focus-within:border-transparent transition-all">
             <textarea
@@ -289,7 +289,7 @@ export default function ChatInterface({
             )}
           </button>
         </div>
-        <p className="text-center text-xs text-stone-400 mt-2">
+        <p className="hidden md:block text-center text-xs text-stone-400 mt-2">
           Press Enter to send, Shift+Enter for new line
         </p>
       </div>
@@ -439,7 +439,7 @@ function MessageBubble({
   if (isUser) {
     return (
       <div className="flex justify-end">
-        <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl rounded-tr-sm px-5 py-3 max-w-[75%] shadow-sm">
+        <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl rounded-tr-sm px-5 py-3 max-w-[90%] md:max-w-[75%] shadow-sm">
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
         </div>
       </div>
@@ -451,7 +451,7 @@ function MessageBubble({
       <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-xs shadow-sm flex-shrink-0 mt-0.5">
         {characterName.charAt(0)}
       </div>
-      <div className="flex flex-col gap-2 max-w-[75%]">
+      <div className="flex flex-col gap-2 max-w-[90%] md:max-w-[75%]">
         <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-sm px-5 py-3 shadow-sm">
           {isStreaming ? (
             <div className="flex items-center gap-1.5">
@@ -500,7 +500,7 @@ function EmptyConversation({
   ]
 
   return (
-    <div className="flex flex-col items-center justify-center py-12 text-center">
+    <div className="flex flex-col items-center justify-center py-6 md:py-12 text-center">
       <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-3xl font-bold shadow-xl shadow-orange-200 mb-6">
         {character.name.charAt(0)}
       </div>

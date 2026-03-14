@@ -88,7 +88,7 @@ export default function FileUpload({ characterId, onUploadComplete }: FileUpload
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         onClick={() => !selectedFile && inputRef.current?.click()}
-        className={`relative border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer ${
+        className={`relative border-2 border-dashed rounded-2xl p-5 md:p-8 text-center transition-all cursor-pointer ${
           dragOver
             ? 'border-amber-400 bg-amber-50'
             : selectedFile

@@ -76,7 +76,7 @@ export default function ConversationList({
             onClick={() => handleDelete(conv.id)}
             disabled={deleting === conv.id}
             title="Delete conversation"
-            className="mr-4 p-2 rounded-lg text-stone-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 flex-shrink-0"
+            className="mr-4 p-2 rounded-lg text-stone-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             <Trash2 className={`w-4 h-4 ${deleting === conv.id ? 'animate-pulse' : ''}`} />
           </button>

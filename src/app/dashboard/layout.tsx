@@ -1,9 +1,7 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import { signOut } from '@/lib/auth'
 import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
-import { BookOpen, LayoutDashboard, LogOut, MessageSquarePlus, Plus } from 'lucide-react'
+import Sidebar from '@/components/Sidebar'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -25,102 +23,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="min-h-screen bg-amber-50/40 flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-stone-200 flex flex-col fixed h-full z-10">
-        {/* Brand */}
-        <div className="px-6 py-5 border-b border-stone-100 flex items-center gap-3">
-          <div className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl p-2 shadow-sm">
-            <BookOpen className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-lg font-bold text-stone-900">Literati</span>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-700 hover:bg-amber-50 hover:text-amber-800 transition-colors text-sm font-medium"
-          >
-            <LayoutDashboard className="w-4 h-4" />
-            My Characters
-          </Link>
-          <Link
-            href="/dashboard/characters/new"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-700 hover:bg-amber-50 hover:text-amber-800 transition-colors text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            New Character
-          </Link>
-
-          {/* Character list */}
-          {charList.length > 0 && (
-            <div className="pt-4 mt-4 border-t border-stone-100 space-y-1">
-              <p className="px-3 text-[11px] font-semibold text-stone-400 uppercase tracking-wider mb-2">
-                Characters
-              </p>
-              {charList.map((char) => (
-                <div key={char.id} className="flex items-center group">
-                  <Link
-                    href={`/dashboard/characters/${char.id}`}
-                    className="flex-1 min-w-0 flex items-center gap-3 px-3 py-2 rounded-xl text-stone-600 hover:bg-amber-50 hover:text-amber-800 transition-colors text-sm"
-                  >
-                    <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                      {char.name.charAt(0).toUpperCase()}
-                    </span>
-                    <span className="truncate">{char.name}</span>
-                  </Link>
-                  <Link
-                    href={`/dashboard/chat/${char.id}/new`}
-                    title={`New chat with ${char.name}`}
-                    className="mr-2 p-1.5 rounded-lg text-stone-300 hover:text-amber-600 hover:bg-amber-50 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-                  >
-                    <MessageSquarePlus className="w-4 h-4" />
-                  </Link>
-                </div>
-              ))}
-            </div>
-          )}
-        </nav>
-
-        {/* User footer */}
-        <div className="px-4 py-4 border-t border-stone-100">
-          <div className="flex items-center gap-3 px-3 py-2 rounded-xl">
-            {user.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={user.image}
-                alt={user.name ?? 'User'}
-                className="w-8 h-8 rounded-full flex-shrink-0"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-amber-200 flex items-center justify-center text-amber-800 font-semibold text-sm flex-shrink-0">
-                {(user.name ?? user.email ?? 'U').charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-stone-900 truncate">{user.name}</p>
-              <p className="text-xs text-stone-400 truncate">{user.email}</p>
-            </div>
-            <form
-              action={async () => {
-                'use server'
-                await signOut({ redirectTo: '/login' })
-              }}
-            >
-              <button
-                type="submit"
-                title="Sign out"
-                className="text-stone-400 hover:text-stone-700 transition-colors p-1 rounded-lg hover:bg-stone-100"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </form>
-          </div>
-        </div>
-      </aside>
+      <Sidebar user={user} charList={charList} />
 
       {/* Main content */}
-      <main className="flex-1 ml-64">
+      <main className="flex-1 md:ml-64 pt-16 md:pt-0">
         {children}
       </main>
     </div>

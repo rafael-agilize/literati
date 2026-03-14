@@ -44,7 +44,7 @@ export default function NewCharacterPage() {
   }
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-4 md:p-8 max-w-2xl">
       {/* Back nav */}
       <Link
         href="/dashboard"
@@ -136,10 +136,10 @@ export default function NewCharacterPage() {
         )}
 
         {/* Actions */}
-        <div className="flex gap-3 pt-2">
+        <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
           <Link
             href="/dashboard"
-            className="px-5 py-2.5 rounded-xl border border-stone-200 text-stone-600 font-medium hover:bg-stone-50 transition-colors text-sm"
+            className="px-5 py-2.5 rounded-xl border border-stone-200 text-stone-600 font-medium hover:bg-stone-50 transition-colors text-sm text-center"
           >
             Cancel
           </Link>

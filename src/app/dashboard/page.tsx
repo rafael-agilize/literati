@@ -34,9 +34,9 @@ export default async function DashboardPage() {
   const list = (characters ?? []) as Character[]
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6 md:mb-8">
         <div>
           <h1 className="text-2xl font-bold text-stone-900">My Characters</h1>
           <p className="text-stone-500 mt-1 text-sm">
@@ -54,7 +54,7 @@ export default async function DashboardPage() {
 
       {/* Stats row */}
       {list.length > 0 && (
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
           <StatCard
             icon={<BookOpen className="w-5 h-5 text-amber-600" />}
             label="Characters"
@@ -80,7 +80,7 @@ export default async function DashboardPage() {
       {list.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5">
           {list.map((character) => (
             <CharacterCard key={character.id} character={character} />
           ))}

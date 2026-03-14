@@ -3,7 +3,11 @@
 :root {
   --background: #fefce8;
   --foreground: #1c1917;
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 body {
   background: var(--background);

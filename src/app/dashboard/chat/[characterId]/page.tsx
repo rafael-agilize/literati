@@ -46,7 +46,7 @@ export default async function CharacterChatListPage({
   const convs = (conversations ?? []) as Conversation[]
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-4 md:p-8 max-w-2xl">
       {/* Back nav */}
       <Link
         href={`/dashboard/characters/${characterId}`}
@@ -57,7 +57,7 @@ export default async function CharacterChatListPage({
       </Link>
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-stone-900">
             Chat with {character.name}
@@ -68,7 +68,7 @@ export default async function CharacterChatListPage({
         </div>
         <Link
           href={`/dashboard/chat/${characterId}/new`}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2.5 rounded-xl font-semibold hover:from-amber-600 hover:to-orange-600 transition-all shadow-sm text-sm"
+          className="w-full sm:w-auto text-center inline-flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2.5 rounded-xl font-semibold hover:from-amber-600 hover:to-orange-600 transition-all shadow-sm text-sm"
         >
           <Plus className="w-4 h-4" />
           New Conversation

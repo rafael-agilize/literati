@@ -99,7 +99,7 @@ export default function DocumentList({ characterId, initialDocuments }: Document
                   </span>
                 )}
                 {doc.status === 'error' && (
-                  <span className="text-xs text-red-600 truncate max-w-xs">
+                  <span className="text-xs text-red-600 truncate max-w-[200px] md:max-w-xs">
                     {doc.error_message ?? 'Processing failed'}
                   </span>
                 )}
@@ -112,7 +112,7 @@ export default function DocumentList({ characterId, initialDocuments }: Document
               onClick={() => handleDelete(doc.id)}
               disabled={deletingId === doc.id}
               title="Delete document"
-              className="text-stone-300 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 flex-shrink-0 disabled:opacity-50"
+              className="text-stone-300 hover:text-red-500 transition-colors p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-red-50 flex-shrink-0 disabled:opacity-50"
             >
               {deletingId === doc.id ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
