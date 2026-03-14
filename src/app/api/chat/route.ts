@@ -139,21 +139,24 @@ async function _chatHandler(req: NextRequest): Promise<Response> {
     .from('chat_messages')
     .insert({ conversation_id: convId, role: 'user', content: message.trim() })
 
-  // RAG: embed the query and retrieve semantically similar chunks
+  // RAG: embed the query and retrieve via hybrid search (vector + BM25)
   const queryEmbedding = await embedText(message, 'RETRIEVAL_QUERY')
-  const { data: rawChunks } = await supabase.rpc('match_chunks', {
+  const { data: rawChunks } = await supabase.rpc('hybrid_match_chunks', {
+    query_text: message,
     query_embedding: queryEmbedding,
     character_id_filter: character.id,
-    match_count: 8,
+    match_count: 20,
+    vector_weight: 0.7,
+    text_weight: 0.3,
     match_threshold: 0.3,
   })
 
-  type RawChunk = { id: string; content: string; similarity: number; document_id: string; chunk_index: number }
-  const typedChunks = (rawChunks ?? []) as RawChunk[]
+  type RawChunk = { id: string; content: string; similarity: number; text_score: number; rrf_score: number; document_id: string; chunk_index: number }
+  const typedChunks = ((rawChunks ?? []) as RawChunk[]).slice(0, 8)
   const retrievedChunks = typedChunks.map((c) => c.content)
 
   // Fetch source filenames for chunk metadata
-  let chunksMeta: { id: string; content: string; similarity: number; source_filename: string; chunk_index: number }[] = []
+  let chunksMeta: { id: string; content: string; similarity: number; text_score: number; rrf_score: number; source_filename: string; chunk_index: number }[] = []
   if (typedChunks.length > 0) {
     const docIds = [...new Set(typedChunks.map((c) => c.document_id))]
     const { data: docs } = await supabase.from('documents').select('id, filename').in('id', docIds)
@@ -162,6 +165,8 @@ async function _chatHandler(req: NextRequest): Promise<Response> {
       id: c.id,
       content: c.content,
       similarity: c.similarity,
+      text_score: c.text_score,
+      rrf_score: c.rrf_score,
       source_filename: docMap.get(c.document_id) ?? 'unknown',
       chunk_index: c.chunk_index,
     }))
