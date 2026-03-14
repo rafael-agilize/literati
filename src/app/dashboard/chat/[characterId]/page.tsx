@@ -2,7 +2,8 @@ import { auth } from '@/lib/auth'
 import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, MessageSquare, Clock } from 'lucide-react'
+import { ArrowLeft, Plus, MessageSquare } from 'lucide-react'
+import ConversationList from '@/components/ConversationList'
 
 type Conversation = {
   id: string
@@ -107,37 +108,7 @@ export default async function CharacterChatListPage({
           </Link>
         </div>
       ) : (
-        <div className="space-y-3">
-          {convs.map((conv) => (
-            <Link
-              key={conv.id}
-              href={`/dashboard/chat/${characterId}/${conv.id}`}
-              className="block bg-white border border-stone-200 rounded-2xl px-5 py-4 hover:border-amber-300 hover:shadow-md transition-all group"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-stone-900 group-hover:text-amber-800 transition-colors truncate">
-                    {conv.title}
-                  </p>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="text-xs text-stone-400 flex items-center gap-1">
-                      <MessageSquare className="w-3 h-3" />
-                      {conv.message_count} message{conv.message_count !== 1 ? 's' : ''}
-                    </span>
-                    <span className="text-stone-300 text-xs">·</span>
-                    <span className="text-xs text-stone-400 flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {new Date(conv.updated_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-stone-300 group-hover:text-amber-400 transition-colors ml-3">
-                  &rarr;
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+        <ConversationList conversations={convs} characterId={characterId} />
       )}
     </div>
   )

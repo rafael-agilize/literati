@@ -2,13 +2,26 @@ import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { signOut } from '@/lib/auth'
-import { BookOpen, LayoutDashboard, LogOut, Plus } from 'lucide-react'
+import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
+import { BookOpen, LayoutDashboard, LogOut, MessageSquarePlus, Plus } from 'lucide-react'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
   if (!session?.user) redirect('/login')
 
   const user = session.user
+
+  const supabase = createAdminClient()
+  const userId = user.email ? await resolveUserIdByEmail(supabase, user.email) : null
+  const { data: characters } = userId
+    ? await supabase
+        .from('characters')
+        .select('id, name')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(20)
+    : { data: [] }
+  const charList = (characters ?? []) as { id: string; name: string }[]
 
   return (
     <div className="min-h-screen bg-amber-50/40 flex">
@@ -23,7 +36,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-4 py-6 space-y-1">
+        <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
           <Link
             href="/dashboard"
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-700 hover:bg-amber-50 hover:text-amber-800 transition-colors text-sm font-medium"
@@ -38,6 +51,35 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <Plus className="w-4 h-4" />
             New Character
           </Link>
+
+          {/* Character list */}
+          {charList.length > 0 && (
+            <div className="pt-4 mt-4 border-t border-stone-100 space-y-1">
+              <p className="px-3 text-[11px] font-semibold text-stone-400 uppercase tracking-wider mb-2">
+                Characters
+              </p>
+              {charList.map((char) => (
+                <div key={char.id} className="flex items-center group">
+                  <Link
+                    href={`/dashboard/characters/${char.id}`}
+                    className="flex-1 min-w-0 flex items-center gap-3 px-3 py-2 rounded-xl text-stone-600 hover:bg-amber-50 hover:text-amber-800 transition-colors text-sm"
+                  >
+                    <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                      {char.name.charAt(0).toUpperCase()}
+                    </span>
+                    <span className="truncate">{char.name}</span>
+                  </Link>
+                  <Link
+                    href={`/dashboard/chat/${char.id}/new`}
+                    title={`New chat with ${char.name}`}
+                    className="mr-2 p-1.5 rounded-lg text-stone-300 hover:text-amber-600 hover:bg-amber-50 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                  >
+                    <MessageSquarePlus className="w-4 h-4" />
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
         </nav>
 
         {/* User footer */}
