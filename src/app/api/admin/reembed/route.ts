@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
     oldChunks: number
     newChunks: number
     source: 'raw_text' | 'reconstructed'
+    error?: string
   }[] = []
 
   for (const doc of documents) {
@@ -154,6 +155,7 @@ export async function POST(req: NextRequest) {
         oldChunks: -1,
         newChunks: -1,
         source: 'raw_text',
+        error: message,
       })
     }
   }
