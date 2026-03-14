@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
 import { embedText, generateCharacterResponse } from '@/lib/gemini'
 import { deduplicateChunks } from '@/lib/chunker'
+import { rerankChunks } from '@/lib/reranker'
 
 export const maxDuration = 60
 
@@ -153,7 +154,10 @@ async function _chatHandler(req: NextRequest): Promise<Response> {
   })
 
   type RawChunk = { id: string; content: string; similarity: number; text_score: number; rrf_score: number; document_id: string; chunk_index: number }
-  const typedChunks = ((rawChunks ?? []) as RawChunk[]).slice(0, 8)
+  const allChunks = (rawChunks ?? []) as RawChunk[]
+
+  // Rerank all 20 candidates using LLM judge, then take top 8
+  const typedChunks = await rerankChunks(allChunks, message, 8)
 
   // Sort by document position for natural reading order
   typedChunks.sort((a, b) =>
