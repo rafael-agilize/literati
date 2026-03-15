@@ -161,7 +161,7 @@ async function processDocument(
     }))
 
     // Small batches to avoid Supabase statement timeout with vector columns
-    const INSERT_BATCH = 20
+    const INSERT_BATCH = 50
     for (let i = 0; i < chunkRows.length; i += INSERT_BATCH) {
       const batch = chunkRows.slice(i, i + INSERT_BATCH)
       let lastErr: string | null = null
