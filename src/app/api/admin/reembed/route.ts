@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
 
       // Insert new chunks first (new IDs, no PK conflict)
       // Small batches to avoid Supabase statement timeout with vector columns
-      const INSERT_BATCH = 20
+      const INSERT_BATCH = 50
       const chunkRows = chunks.map((content, i) => ({
         document_id: doc.id,
         character_id: doc.character_id,
