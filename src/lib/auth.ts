@@ -24,23 +24,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (existing) {
         const { error } = await supabase
           .from('users')
-          .update({ name: user.name ?? null, image: user.image ?? null })
+          .update({ name: user.name ?? '' })
           .eq('id', existing.id)
         if (error) {
           console.error('[auth] Failed to update user:', error.message)
           return false
         }
       } else {
+        const newId = crypto.randomUUID()
         const { error } = await supabase.from('users').insert({
-          id: user.email,
+          id: newId,
           email: user.email,
-          name: user.name ?? null,
-          image: user.image ?? null,
+          name: user.name ?? '',
         })
         if (error) {
           console.error('[auth] Failed to create user:', error.message)
           return false
         }
+        // Migrate any existing data that referenced email as user_id
+        await supabase
+          .from('characters')
+          .update({ user_id: newId })
+          .eq('user_id', user.email)
+        await supabase
+          .from('conversations')
+          .update({ user_id: newId })
+          .eq('user_id', user.email)
       }
       return true
     },
