@@ -88,11 +88,13 @@ export default async function ConversationPage({
   const conv = conversation as unknown as Conversation
 
   if (conv.characters.user_id !== effectiveUserId && !conv.characters.is_public) notFound()
+  const isOwner = conv.characters.user_id === effectiveUserId
 
   // Load message history
-  const { data: messages } = await supabase
-    .from('chat_messages')
-    .select('id, role, content, created_at, retrieved_chunks')
+  const messagesQuery = isOwner
+    ? supabase.from('chat_messages').select('id, role, content, created_at, retrieved_chunks')
+    : supabase.from('chat_messages').select('id, role, content, created_at')
+  const { data: messages } = await messagesQuery
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true })
     .limit(100)

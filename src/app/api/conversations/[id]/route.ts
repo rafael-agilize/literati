@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   // Fetch conversation with character details
   const { data: conversation, error: convErr } = await supabase
     .from('conversations')
-    .select('*, characters(id, name, avatar_url, description)')
+    .select('*, characters(id, name, avatar_url, description, user_id)')
     .eq('id', id)
     .eq('user_id', effectiveUserId)
     .single()
@@ -40,10 +40,20 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
   }
 
+  const character = conversation.characters as unknown as {
+    id: string
+    name: string
+    avatar_url: string | null
+    description: string | null
+    user_id: string
+  }
+  const isOwner = !isApiAuth && character.user_id === effectiveUserId
+
   // Fetch messages for this conversation
-  const { data: messages, error: msgErr } = await supabase
-    .from('chat_messages')
-    .select('id, role, content, created_at, retrieved_chunks')
+  const messagesQuery = isOwner
+    ? supabase.from('chat_messages').select('id, role, content, created_at, retrieved_chunks')
+    : supabase.from('chat_messages').select('id, role, content, created_at')
+  const { data: messages, error: msgErr } = await messagesQuery
     .eq('conversation_id', id)
     .order('created_at', { ascending: true })
     .limit(limit)
@@ -53,7 +63,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 
-  return NextResponse.json({ conversation, messages: messages ?? [] })
+  const { user_id: _ownerId, ...publicCharacter } = character
+  return NextResponse.json({
+    conversation: { ...conversation, characters: publicCharacter },
+    messages: messages ?? [],
+  })
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
