@@ -2,6 +2,12 @@ import NextAuth from 'next-auth'
 import Google from 'next-auth/providers/google'
 import { createAdminClient } from './supabase'
 
+const ALLOWED_EMAILS = new Set([
+  'aragaobebeta@gmail.com',
+  'rafa.viana@gmail.com',
+  'amarallorene@gmail.com',
+])
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Google({
@@ -12,7 +18,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
     async signIn({ user }) {
-      if (!user.email) return false
+      if (!user.email || !ALLOWED_EMAILS.has(user.email.toLowerCase())) {
+        return false
+      }
       const supabase = createAdminClient()
 
       const { data: existing } = await supabase
