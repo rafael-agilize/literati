@@ -31,15 +31,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return false
         }
       } else {
-        const newId = crypto.randomUUID()
-        const { error } = await supabase.from('users').insert({
-          id: newId,
+        // users.id references auth.users(id), so the row must be created
+        // through Supabase Auth; the on_auth_user_created trigger then
+        // inserts the public.users row with a valid id.
+        const { data: created, error } = await supabase.auth.admin.createUser({
           email: user.email,
-          name: user.name ?? '',
+          email_confirm: true,
+          user_metadata: { name: user.name ?? '' },
         })
-        if (error) {
-          console.error('[auth] Failed to create user:', error.message)
-          return false
+        let newId = created?.user?.id
+        if (error || !newId) {
+          // Duplicate-email from a concurrent first sign-in (or an auth user
+          // created elsewhere): the trigger row may exist now — re-read it.
+          const { data: existingRow } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', user.email)
+            .single()
+          newId = existingRow?.id
+          if (!newId) {
+            console.error('[auth] Failed to create user:', error?.message)
+            return false
+          }
         }
         // Migrate any existing data that referenced email as user_id
         await supabase
