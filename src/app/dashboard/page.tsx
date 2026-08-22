@@ -23,15 +23,24 @@ export default async function DashboardPage() {
   const supabase = createAdminClient()
   const userId = email ? await resolveUserIdByEmail(supabase, email) : null
 
-  const { data: characters } = userId
-    ? await supabase
-        .from('characters')
-        .select('*')
-        .eq('user_id', userId)
-        .order('updated_at', { ascending: false })
-    : { data: [] }
+  const [{ data: characters }, { data: publicCharacters }] = userId
+    ? await Promise.all([
+        supabase
+          .from('characters')
+          .select('*')
+          .eq('user_id', userId)
+          .order('updated_at', { ascending: false }),
+        supabase
+          .from('characters')
+          .select('id, name, description, avatar_url, is_public, document_count, chunk_count, created_at, updated_at')
+          .eq('is_public', true)
+          .neq('user_id', userId)
+          .order('updated_at', { ascending: false }),
+      ])
+    : [{ data: [] }, { data: [] }]
 
   const list = (characters ?? []) as Character[]
+  const publicList = (publicCharacters ?? []) as Character[]
 
   return (
     <div className="p-4 md:p-8">
@@ -85,6 +94,22 @@ export default async function DashboardPage() {
             <CharacterCard key={character.id} character={character} />
           ))}
         </div>
+      )}
+
+      {publicList.length > 0 && (
+        <section className="mt-10 md:mt-12">
+          <div className="mb-5">
+            <h2 className="text-xl font-bold text-stone-900">Public characters</h2>
+            <p className="text-stone-500 mt-1 text-sm">
+              Characters shared by other users
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5">
+            {publicList.map((character) => (
+              <CharacterCard key={character.id} character={character} owned={false} />
+            ))}
+          </div>
+        </section>
       )}
     </div>
   )

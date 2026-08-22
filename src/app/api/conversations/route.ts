@@ -71,6 +71,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'characterId is required' }, { status: 400 })
   }
 
+  const { data: character } = await supabase
+    .from('characters')
+    .select('user_id, is_public')
+    .eq('id', body.characterId)
+    .single()
+
+  const canAccessCharacter = character && (
+    isApiAuth
+      ? character.is_public
+      : character.user_id === userId || character.is_public
+  )
+
+  if (!canAccessCharacter) {
+    return NextResponse.json({ error: 'Character not found' }, { status: 404 })
+  }
+
   const { data, error } = await supabase
     .from('conversations')
     .insert({

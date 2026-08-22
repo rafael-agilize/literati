@@ -23,8 +23,9 @@ type Character = {
   id: string
   name: string
   description: string | null
-  system_prompt: string | null
   avatar_url: string | null
+  user_id: string
+  is_public: boolean
 }
 
 type Conversation = {
@@ -49,6 +50,16 @@ export default async function ConversationPage({
 
   // Handle "new" conversation — create one and redirect to it
   if (conversationId === 'new') {
+    const { data: character } = await supabase
+      .from('characters')
+      .select('id, user_id, is_public')
+      .eq('id', characterId)
+      .single()
+
+    if (!character || (character.user_id !== effectiveUserId && !character.is_public)) {
+      notFound()
+    }
+
     const { data: conv } = await supabase
       .from('conversations')
       .insert({
@@ -66,14 +77,17 @@ export default async function ConversationPage({
   // Load conversation with character details
   const { data: conversation, error: convErr } = await supabase
     .from('conversations')
-    .select('id, title, character_id, characters(id, name, description, system_prompt, avatar_url)')
+    .select('id, title, character_id, characters(id, name, description, avatar_url, user_id, is_public)')
     .eq('id', conversationId)
     .eq('user_id', effectiveUserId)
+    .eq('character_id', characterId)
     .single()
 
   if (convErr || !conversation) notFound()
 
   const conv = conversation as unknown as Conversation
+
+  if (conv.characters.user_id !== effectiveUserId && !conv.characters.is_public) notFound()
 
   // Load message history
   const { data: messages } = await supabase

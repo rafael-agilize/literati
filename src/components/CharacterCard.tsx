@@ -17,7 +17,13 @@ type Character = {
   updated_at: string
 }
 
-export default function CharacterCard({ character }: { character: Character }) {
+export default function CharacterCard({
+  character,
+  owned = true,
+}: {
+  character: Character
+  owned?: boolean
+}) {
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
   const initial = character.name.charAt(0).toUpperCase()
@@ -65,13 +71,15 @@ export default function CharacterCard({ character }: { character: Character }) {
             {initial}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleDelete}
-              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-white/20 backdrop-blur-sm rounded-full p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-white hover:bg-red-500/80"
-              title="Delete character"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            {owned && (
+              <button
+                onClick={handleDelete}
+                className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-white/20 backdrop-blur-sm rounded-full p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-white hover:bg-red-500/80"
+                title="Delete character"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
             <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-2.5 py-1 text-white text-xs font-medium">
               {character.is_public ? (
                 <>
@@ -121,12 +129,14 @@ export default function CharacterCard({ character }: { character: Character }) {
           >
             Chat
           </Link>
-          <Link
-            href={`/dashboard/characters/${character.id}`}
-            className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 text-sm font-medium hover:bg-stone-50 hover:border-stone-300 transition-all min-h-[44px] flex items-center justify-center"
-          >
-            Manage
-          </Link>
+          {owned && (
+            <Link
+              href={`/dashboard/characters/${character.id}`}
+              className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 text-sm font-medium hover:bg-stone-50 hover:border-stone-300 transition-all min-h-[44px] flex items-center justify-center"
+            >
+              Manage
+            </Link>
+          )}
         </div>
       </div>
     </div>

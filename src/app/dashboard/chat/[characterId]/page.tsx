@@ -28,11 +28,13 @@ export default async function CharacterChatListPage({
 
   const { data: character } = await supabase
     .from('characters')
-    .select('id, name, description, documents(id)')
+    .select('id, name, description, user_id, is_public, documents(id)')
     .eq('id', characterId)
     .single()
 
-  if (!character) notFound()
+  if (!character || (character.user_id !== effectiveUserId && !character.is_public)) notFound()
+
+  const isOwner = character.user_id === effectiveUserId
 
   const hasDocuments = (character.documents as unknown[] | null)?.length ?? 0 > 0
 
@@ -49,11 +51,11 @@ export default async function CharacterChatListPage({
     <div className="p-4 md:p-8 max-w-2xl">
       {/* Back nav */}
       <Link
-        href={`/dashboard/characters/${characterId}`}
+        href={isOwner ? `/dashboard/characters/${characterId}` : '/dashboard'}
         className="inline-flex items-center gap-2 text-stone-500 hover:text-stone-800 text-sm mb-6 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        Back to character
+        {isOwner ? 'Back to character' : 'Back to characters'}
       </Link>
 
       {/* Header */}
@@ -78,14 +80,19 @@ export default async function CharacterChatListPage({
       {/* Warning if no documents */}
       {!hasDocuments && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 mb-6">
-          No documents uploaded yet. The character will respond based on general knowledge only.{' '}
-          <Link
-            href={`/dashboard/characters/${characterId}`}
-            className="underline font-medium hover:text-amber-900"
-          >
-            Upload documents
-          </Link>{' '}
-          to improve responses.
+          No documents uploaded yet. The character will respond based on general knowledge only.
+          {isOwner && (
+            <>
+              {' '}
+              <Link
+                href={`/dashboard/characters/${characterId}`}
+                className="underline font-medium hover:text-amber-900"
+              >
+                Upload documents
+              </Link>{' '}
+              to improve responses.
+            </>
+          )}
         </div>
       )}
 

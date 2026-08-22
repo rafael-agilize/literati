@@ -24,7 +24,6 @@ type Character = {
   id: string
   name: string
   description: string | null
-  system_prompt: string | null
   avatar_url: string | null
 }
 

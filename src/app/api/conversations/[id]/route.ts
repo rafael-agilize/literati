@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   // Fetch conversation with character details
   const { data: conversation, error: convErr } = await supabase
     .from('conversations')
-    .select('*, characters(id, name, avatar_url, description, system_prompt)')
+    .select('*, characters(id, name, avatar_url, description)')
     .eq('id', id)
     .eq('user_id', effectiveUserId)
     .single()

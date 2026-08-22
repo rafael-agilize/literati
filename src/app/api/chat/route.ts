@@ -23,6 +23,8 @@ type Character = {
   name: string
   description: string | null
   system_prompt: string | null
+  user_id: string
+  is_public: boolean
 }
 
 async function chatHandler(req: NextRequest): Promise<Response> {
@@ -80,7 +82,7 @@ async function chatHandler(req: NextRequest): Promise<Response> {
     // Load character via the existing conversation
     const { data: conv, error } = await supabase
       .from('conversations')
-      .select('*, characters(id, name, description, system_prompt)')
+      .select('*, characters(id, name, description, system_prompt, user_id, is_public)')
       .eq('id', convId)
       .eq('user_id', effectiveUserId)
       .single()
@@ -89,6 +91,14 @@ async function chatHandler(req: NextRequest): Promise<Response> {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
     character = conv.characters as Character
+
+    const canAccessCharacter = isApiAuth
+      ? character.is_public
+      : character.user_id === effectiveUserId || character.is_public
+
+    if (!canAccessCharacter) {
+      return NextResponse.json({ error: 'Character not found' }, { status: 404 })
+    }
   } else {
     if (!characterId) {
       return NextResponse.json(
@@ -98,7 +108,7 @@ async function chatHandler(req: NextRequest): Promise<Response> {
     }
     const { data: char, error: charErr } = await supabase
       .from('characters')
-      .select('id, name, description, system_prompt')
+      .select('id, name, description, system_prompt, user_id, is_public')
       .eq('id', characterId)
       .single()
 
@@ -106,6 +116,14 @@ async function chatHandler(req: NextRequest): Promise<Response> {
       return NextResponse.json({ error: 'Character not found' }, { status: 404 })
     }
     character = char as Character
+
+    const canAccessCharacter = isApiAuth
+      ? character.is_public
+      : character.user_id === effectiveUserId || character.is_public
+
+    if (!canAccessCharacter) {
+      return NextResponse.json({ error: 'Character not found' }, { status: 404 })
+    }
 
     // Create a new conversation for this character
     const { data: conv } = await supabase
