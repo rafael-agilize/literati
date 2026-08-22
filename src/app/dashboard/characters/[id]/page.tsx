@@ -1,10 +1,11 @@
 import { auth } from '@/lib/auth'
-import { createAdminClient } from '@/lib/supabase'
+import { createAdminClient, resolveUserIdByEmail } from '@/lib/supabase'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, MessageSquare } from 'lucide-react'
 import FileUpload from '@/components/FileUpload'
 import DocumentList, { type UploadedDoc } from '@/components/DocumentList'
+import PublicToggle from '@/components/PublicToggle'
 
 type Character = {
   id: string
@@ -27,10 +28,16 @@ export default async function CharacterDetailPage({
   if (!session?.user) redirect('/login')
 
   const supabase = createAdminClient()
+  const userId = session.user.email
+    ? await resolveUserIdByEmail(supabase, session.user.email)
+    : null
+  if (!userId) redirect('/login')
+
   const { data: character, error } = await supabase
     .from('characters')
     .select('*, documents(id, filename, file_type, status, chunk_count, content_length, error_message, created_at)')
     .eq('id', id)
+    .eq('user_id', userId)
     .single()
 
   if (error || !character) notFound()
@@ -67,14 +74,6 @@ export default async function CharacterDetailPage({
               <span className="text-xs text-stone-400">
                 {char.chunk_count.toLocaleString()} chunks
               </span>
-              {char.is_public && (
-                <>
-                  <span className="text-stone-300">·</span>
-                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                    Public
-                  </span>
-                </>
-              )}
             </div>
           </div>
         </div>
@@ -86,6 +85,8 @@ export default async function CharacterDetailPage({
           Start Chat
         </Link>
       </div>
+
+      <PublicToggle characterId={char.id} initialIsPublic={char.is_public} />
 
       {/* Upload section */}
       <section className="mb-8">

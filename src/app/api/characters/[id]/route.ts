@@ -64,6 +64,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .single()
 
   if (error) {
+    if (error.code === 'PGRST116') {
+      return NextResponse.json({ error: 'Character not found' }, { status: 404 })
+    }
     console.error('[characters] PATCH error:', error.message)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
