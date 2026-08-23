@@ -139,8 +139,6 @@ async function chatHandler(req: NextRequest): Promise<Response> {
     convId = conv!.id
   }
 
-  const isOwner = !isApiAuth && character.user_id === effectiveUserId
-
   // Load recent conversation history (last 10 messages, oldest first)
   const { data: historyRows } = await supabase
     .from('chat_messages')
@@ -214,7 +212,7 @@ async function chatHandler(req: NextRequest): Promise<Response> {
     const encoder = new TextEncoder()
     const transformStream = new TransformStream<Uint8Array, Uint8Array>({
       start(controller) {
-        if (isOwner && chunksMeta.length > 0) {
+        if (chunksMeta.length > 0) {
           controller.enqueue(encoder.encode(JSON.stringify({ chunks: chunksMeta }) + '\n'))
         }
       },
@@ -232,7 +230,7 @@ async function chatHandler(req: NextRequest): Promise<Response> {
               conversation_id: convId,
               role: 'assistant',
               content: fullResponse,
-              retrieved_chunks: isOwner && chunksMeta.length > 0 ? chunksMeta : null,
+              retrieved_chunks: chunksMeta.length > 0 ? chunksMeta : null,
             })
           if (insertErr) console.error('[chat] Failed to persist assistant message:', insertErr.message)
           const { error: updateErr } = await supabase
@@ -271,7 +269,7 @@ async function chatHandler(req: NextRequest): Promise<Response> {
       conversation_id: convId,
       role: 'assistant',
       content: fullResponse,
-      retrieved_chunks: isOwner && chunksMeta.length > 0 ? chunksMeta : null,
+      retrieved_chunks: chunksMeta.length > 0 ? chunksMeta : null,
     })
   if (insertErr) console.error('[chat] Failed to persist assistant message:', insertErr.message)
   const { error: updateErr } = await supabase
@@ -284,6 +282,6 @@ async function chatHandler(req: NextRequest): Promise<Response> {
     response: fullResponse,
     conversationId: convId,
     characterId: character.id,
-    retrievedChunks: isOwner && chunksMeta.length > 0 ? chunksMeta : undefined,
+    retrievedChunks: chunksMeta.length > 0 ? chunksMeta : undefined,
   })
 }
